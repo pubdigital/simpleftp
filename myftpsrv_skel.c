@@ -8,6 +8,7 @@
 #include <err.h>
 
 #include <netinet/in.h>
+#include "debug.h"
 
 #define BUFSIZE 512
 #define CMDSIZE 4
