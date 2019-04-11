@@ -211,7 +211,7 @@ int main (int argc, char *argv[]) {
         printf("arguments are valid :D\n");
     } else {
         DEBUG_PRINT(("args: %d\nserverIp: %s\nserverPort: %s\n", argc, server_ipaddr, server_portn));
-        printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x :80\nWhere the first arg is the server ip addr and the second one is the server port\n");
+        printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x 80\nWhere the first arg is the server ip addr and the second one is the server port\n");
         exit(EXIT_FAILURE);
     }
     // arguments checking
@@ -228,14 +228,3 @@ int main (int argc, char *argv[]) {
 
     return 0;
 }
-
-
-//struct sockaddr_in myaddr;
-//int s;
-//
-//myaddr.sin_family = AF_INET;
-//myaddr.sin_port = htons(3490);
-//inet_aton("63.161.169.137", &myaddr.sin_addr.s_addr);
-//
-//s = socket(PF_INET, SOCK_STREAM, 0);
-//bind(s, (struct sockaddr*)myaddr, sizeof(myaddr));
