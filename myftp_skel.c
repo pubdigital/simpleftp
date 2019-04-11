@@ -8,6 +8,7 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include "debug.h"
 
 #define BUFSIZE 512
 
@@ -179,6 +180,23 @@ void operate(int sd) {
     free(input);
 }
 
+bool isValidIpAddress(char *ipAddress)
+{
+    struct sockaddr_in sa;
+    int result = inet_pton(AF_INET, ipAddress, &(sa.sin_addr));
+    return result != 0;
+}
+
+bool isValidPortNumber(char *portNumber)
+{
+    //char *ptr;
+    // htons sets protNumber to network byte order. not used here because it's just validation
+    //in_port_t port = strtoul(portNumber, &ptr, 10);
+    int port = atoi(portNumber);
+    return (port < UINT16_MAX && port > 0);
+}
+
+
 /**
  * Run with
  *         ./myftp <SERVER_IP> <SERVER_PORT>
@@ -186,7 +204,16 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
     int sd;
     struct sockaddr_in addr;
+    char *server_ipaddr = argv[1];
+    char *server_portn = argv[2];
 
+    if(argc == 3 && isValidIpAddress(server_ipaddr) && isValidPortNumber(server_portn)) {
+        printf("arguments are valid :D\n");
+    } else {
+        DEBUG_PRINT(("args: %d\nserverIp: %s\nserverPort: %s\n", argc, server_ipaddr, server_portn));
+        printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x :80\nWhere the first arg is the server ip addr and the second one is the server port\n");
+        exit(EXIT_FAILURE);
+    }
     // arguments checking
 
     // create socket and check for errors
@@ -201,3 +228,14 @@ int main (int argc, char *argv[]) {
 
     return 0;
 }
+
+
+//struct sockaddr_in myaddr;
+//int s;
+//
+//myaddr.sin_family = AF_INET;
+//myaddr.sin_port = htons(3490);
+//inet_aton("63.161.169.137", &myaddr.sin_addr.s_addr);
+//
+//s = socket(PF_INET, SOCK_STREAM, 0);
+//bind(s, (struct sockaddr*)myaddr, sizeof(myaddr));
