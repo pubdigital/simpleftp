@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include <string.h>
 #include <stdbool.h>
@@ -189,11 +190,18 @@ bool isValidIpAddress(char *ipAddress)
 
 bool isValidPortNumber(char *portNumber)
 {
-    //char *ptr;
-    // htons sets protNumber to network byte order. not used here because it's just validation
-    //in_port_t port = strtoul(portNumber, &ptr, 10);
     int port = atoi(portNumber);
     return (port < UINT16_MAX && port > 0);
+}
+
+unsigned int convert(char *st) {
+  char *x;
+  for (x = st ; *x ; x++) {
+    // if its not a valid string (only digits), just return 0
+    if (!isdigit(*x))
+      return 0L;
+  }
+  return (strtoul(st, 0L, 10));
 }
 
 
@@ -207,6 +215,7 @@ int main (int argc, char *argv[]) {
     char *server_ipaddr = argv[1];
     char *server_portn = argv[2];
 
+    // arguments checking
     if(argc == 3 && isValidIpAddress(server_ipaddr) && isValidPortNumber(server_portn)) {
         printf("arguments are valid :D\n");
     } else {
@@ -214,9 +223,35 @@ int main (int argc, char *argv[]) {
         printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x 80\nWhere the first arg is the server ip addr and the second one is the server port\n");
         exit(EXIT_FAILURE);
     }
-    // arguments checking
 
     // create socket and check for errors
+
+    sd = socket(AF_INET, SOCK_STREAM, 0);
+    DEBUG_PRINT(("socket descriptor [sd]: %d\n", sd));
+    if(sd == -1)
+    {
+        printf("Error opening socket\n");
+        exit(EXIT_FAILURE);
+    }
+
+    addr.sin_port = htons(convert(server_portn));
+    DEBUG_PRINT(("addr.sin_port (without using htons): %u\n", convert(server_portn)));
+    DEBUG_PRINT(("addr.sin_port: %u\n", addr.sin_port));
+    addr.sin_addr.s_addr = 0;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_family = AF_INET;
+
+    // remember to use ports > 1024 if not, a binding error is likely to happen
+    // binding error == port in use
+    if(bind(sd, (struct sockaddr *)&addr,sizeof(struct sockaddr_in) ) == -1)
+    {
+        printf("Error binding socket\n");
+        exit(EXIT_FAILURE);
+    }
+
+    printf("Successfully bound to port %s\n", server_portn);
+
+
     
     // set socket data    
 
@@ -225,6 +260,7 @@ int main (int argc, char *argv[]) {
     // if receive hello proceed with authenticate and operate if not warning
 
     // close socket
+    close(sd);
 
     return 0;
 }
