@@ -125,14 +125,35 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
-
+    strcpy(cred,"");
+    strcat(cred,user);
+    strcat(cred,":");
+    strcat(cred,pass);
+    strcat(cred,"\n");
+    len=sizeof(cred);
     // check if ftpusers file it's present
-
+    if((file=fopen(path,"r"))==NULL){    
+        printf("Archivo de credenciales no encontrado\n");
+    	return false;
+    }
     // search for credential string
-
+    line=(char*)malloc(sizeof(char)*100);
+    while(!feof(file)){
+    	fgets(line, 100, file);
+    	if(strncmp(line,cred,len)==0){
+    		found=true;
+    		break;
+    	}
+    }
     // close file and release any pointes if necessary
-
+    fclose(file);
+    free(line);
     // return search status
+    if(found == false)
+    	printf(MSG_530);
+    else
+    	printf(MSG_230,user);
+    return found;
 }
 
 /**
