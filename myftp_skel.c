@@ -100,7 +100,7 @@ void authenticate(int sd) {
     // wait to receive password requirement and check for errors
     if(!recv_msg(sd, 331, desc))
     {
-        warn("Password request not received from server");
+        warn("Password request not received from server\n");
     }
     printf("Server says: %s\n", desc);
 
@@ -111,11 +111,15 @@ void authenticate(int sd) {
     // send the command to the server
     send_msg(sd, "PASS", input);
 
-
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
+    if(!recv_msg(sd, 230, desc))
+    {
+        warn("Authentication status not received or incorrect from server\n");
+    }
+    printf("Server says: %s\n", desc);
 
 }
 

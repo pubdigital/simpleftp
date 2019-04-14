@@ -209,10 +209,20 @@ bool authenticate(int sd) {
     if(!check_credentials(user, pass))
     {
         DEBUG_PRINT(("Credentials for %s:%s not found\n", user, pass));
+        bytes_sent = send(sd, MSG_530, strlen(MSG_530), 0);
+        if(bytes_sent == -1)
+        {
+            perror("send error at confirm login: ");
+        }
         return false;
     }
 
     // confirm login
+    bytes_sent = send(sd, MSG_230, strlen(MSG_230), 0);
+    if(bytes_sent == -1)
+    {
+        perror("send error at confirm login: ");
+    }
     return true;
 }
 
