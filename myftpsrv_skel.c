@@ -125,14 +125,31 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
-
+    strcpy(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
+    strcat(cred, "\n");
+    
     // check if ftpusers file it's present
-
+    file = fopen(path, "r");
+    if (file == NULL) {
+        printf(MSG_550);
+    }
+    
     // search for credential string
-
+    line = (char *)malloc(sizeof(char)*100);
+    while(feof(file) == 0) {
+        fgets(line, 100, file);
+    }
+    if (strcmp(file, line) == 0) {
+        found = true;
+    } 
+    
     // close file and release any pointes if necessary
-
+    fclose(file);
+    
     // return search status
+    return found;
 }
 
 /**
