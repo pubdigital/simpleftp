@@ -257,10 +257,7 @@ int main (int argc, char *argv[]) {
     printf("Successfully connected to server %s\n", server_portn);   
 
     // if receive hello proceed with authenticate and operate if not warning
-    if(!recv_msg(sd, 220, NULL))
-    {
-        printf("Hello message not received from server\n");
-    }
+    recv_msg(sd, 220, NULL);
 
     // close socket
     close(sd);

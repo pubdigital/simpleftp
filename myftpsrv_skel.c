@@ -226,13 +226,14 @@ int main (int argc, char *argv[]) {
     }
 
     // reserve sockets and variables space
-    bzero(&servaddr, sizeof(servaddr));
     servaddr.sin_family = AF_INET; 
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY); 
-    servaddr.sin_port = htons(convert(server_portn)); 
+    servaddr.sin_port = htons(convert(server_portn));
+    memset(servaddr.sin_zero, '\0', sizeof servaddr.sin_zero);
+    DEBUG_PRINT(("servaddr.sinaddr.s_addr: %d\nservaddr.sin_port: %d\n", htonl(INADDR_ANY), htons(convert(server_portn))));
 
     // create server socket and check errors
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
     DEBUG_PRINT(("sockfd: %d\n", sockfd));
     if (sockfd == -1) { 
         printf("socket creation failed...\n"); 
@@ -263,14 +264,19 @@ int main (int argc, char *argv[]) {
         if (connfd < 0) { 
             printf("server acccept failed...\n"); 
             exit(EXIT_FAILURE); 
-        } 
+        }
+
         printf("server acccept the client...\n");
 
         // send hello
         int hello_len, bytes_sent;
         hello_len = strlen(MSG_220);
         DEBUG_PRINT(("Send hello length: %d\n", hello_len));
-        bytes_sent = send(sockfd, MSG_220, hello_len, 0);
+        bytes_sent = send(connfd, MSG_220, hello_len, 0);
+        if(bytes_sent == -1)
+        {
+            perror("send error: ");
+        }
         DEBUG_PRINT(("Send hello bytes sent %d\n", bytes_sent));
         // operate only if authenticate is true
     }
