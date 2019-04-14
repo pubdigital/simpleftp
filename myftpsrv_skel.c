@@ -119,20 +119,37 @@ void retr(int sd, char *file_path) {
  * return: true if found or false if not
  **/
 bool check_credentials(char *user, char *pass) {
-    FILE *file;
+    FILE *file = NULL;
     char *path = "./ftpusers", *line = NULL, cred[100];
     size_t len = 0;
     bool found = false;
 
     // make the credential string
+    strcpy(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
 
     // check if ftpusers file it's present
-
+    if ((file = fopen(path, "r")) == NULL) {
+        printf(MSG_550, path);
+        exit(1);
+    } else {
     // search for credential string
-
+        line = (char*)(malloc(strlen(cred)+1));
+        while (!feof(file)) {
+            fgets(line, strlen(cred)+1, file);
+            if (strcmp(cred, line) == 0) {
+                found = true;
+                break;
+            }
+        }
     // close file and release any pointes if necessary
-
+        free(line);
+        fclose(file);
+    }
+    
     // return search status
+    return found;
 }
 
 /**
