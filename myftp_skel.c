@@ -28,6 +28,7 @@ bool recv_msg(int sd, int code, char *text) {
 
     // receive the answer
     recv_s = recv(sd, buffer, BUFSIZE, 0);
+    DEBUG_PRINT(("recv_s: %d\n", recv_s));
 
     // error checking
     if (recv_s < 0) warn("error receiving data");

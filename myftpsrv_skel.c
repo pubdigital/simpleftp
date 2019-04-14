@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <err.h>
 #include <ctype.h>
+#include <signal.h>
 
 #include <netinet/in.h>
 #include "debug.h"
@@ -206,6 +207,9 @@ unsigned int convert(char *st) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
+    // ignore kill signal sent from client when client finishes executing
+    signal(SIGPIPE,SIG_IGN);
+
     int sockfd, connfd, len; 
     struct sockaddr_in servaddr, cli; 
     char *server_portn = argv[1];
