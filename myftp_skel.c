@@ -51,6 +51,7 @@ bool recv_msg(int sd, int code, char *text) {
  **/
 void send_msg(int sd, char *operation, char *param) {
     char buffer[BUFSIZE] = "";
+    int bytes_sent;
 
     // command formating
     if (param != NULL)
@@ -59,7 +60,11 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    bytes_sent = send(sd, buffer, strlen(buffer), 0);
+    if(bytes_sent == -1)
+    {
+        perror("send error: ");
+    }
 }
 
 /**
@@ -87,18 +92,24 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
+    send_msg(sd, "USER", input);
     
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    if(!recv_msg(sd, 331, desc))
+    {
+        warn("Password request not received from server");
+    }
+    printf("Server says: %s\n", desc);
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
+    send_msg(sd, "PASS", input);
 
 
     // release memory
@@ -228,7 +239,6 @@ int main (int argc, char *argv[]) {
     }
 
     // create socket and check for errors
-
     sd = socket(AF_INET, SOCK_STREAM, 0);
     DEBUG_PRINT(("socket descriptor [sd]: %d\n", sd));
     if(sd == -1)
@@ -257,7 +267,11 @@ int main (int argc, char *argv[]) {
     printf("Successfully connected to server %s\n", server_portn);   
 
     // if receive hello proceed with authenticate and operate if not warning
-    recv_msg(sd, 220, NULL);
+    if(!recv_msg(sd, 220, NULL))
+    {
+        warn("Hello message not received from server");
+    }
+    authenticate(sd);
 
     // close socket
     close(sd);

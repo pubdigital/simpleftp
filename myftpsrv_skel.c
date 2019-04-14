@@ -42,27 +42,42 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
-
-
+    DEBUG_PRINT(("recv_cmd sd: %d operation %s param %s\n",sd,operation,param));
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
+    DEBUG_PRINT(("after recv at recv_cmd: buffer: %s\nrecv_s: %d\n",buffer,recv_s));
+    if (recv_s < 0)
+    {
+        warn("error receiving data");
+        return false;
+    }
+    if (recv_s == 0) {
+        warn("connection closed by client");
+        return false;
+    }
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
+    DEBUG_PRINT(("recv_cmd expunged buffer: %s\n",buffer));
 
     // complex parsing of the buffer
     // extract command receive in operation if not set \0
     // extract parameters of the operation in param if it needed
     token = strtok(buffer, " ");
+    DEBUG_PRINT(("AFTER STRTOK token: %s\n", token));
     if (token == NULL || strlen(token) < 4) {
         warn("not valid ftp command");
         return false;
     } else {
         if (operation[0] == '\0') strcpy(operation, token);
+        DEBUG_PRINT(("AFTER STRcpy\n"));
         if (strcmp(operation, token)) {
             warn("abnormal client flow: did not send %s command", operation);
             return false;
         }
         token = strtok(NULL, " ");
+        DEBUG_PRINT(("AFTER token = strtok(NULL, \" \")\n"));
         if (token != NULL) strcpy(param, token);
+        DEBUG_PRINT(("End of recv_cmd token: %s\n",token));
     }
     return true;
 }
@@ -144,17 +159,32 @@ bool check_credentials(char *user, char *pass) {
  * return: true if login is succesfully, false if not
  **/
 bool authenticate(int sd) {
+    int bytes_sent;
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
-
+    if(!recv_cmd(sd, "USER", user))
+    {
+        warn("Error on user authentication [username]: %s\n", user);
+        return false;
+    }
     // ask for password
-
+    bytes_sent = send(sd, MSG_331, strlen(MSG_331), 0);
+    if(bytes_sent == -1)
+    {
+        perror("send error at authenticate: ");
+    }
     // wait to receive PASS action
-
+    if(!recv_cmd(sd, "PASS", pass))
+    {
+        warn("Error on user authentication [password]: %s\n", pass);
+        return false;
+    }
+    DEBUG_PRINT(("PASSWORD RECEIVED: %s\n", pass));
     // if credentials don't check denied login
 
     // confirm login
+    return true;
 }
 
 /**
@@ -278,7 +308,14 @@ int main (int argc, char *argv[]) {
             perror("send error: ");
         }
         DEBUG_PRINT(("Send hello bytes sent %d\n", bytes_sent));
+
         // operate only if authenticate is true
+        if(!authenticate(connfd))
+        {
+            warn("Error on authentication of user\n");
+            // TODO: send login incorrect msg
+        }
+
     }
 
     // close server socket
