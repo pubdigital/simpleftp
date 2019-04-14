@@ -151,6 +151,7 @@ bool check_credentials(char *user, char *pass) {
     // close file and release any pointes if necessary
 
     // return search status
+    return found;
 }
 
 /**
@@ -182,6 +183,11 @@ bool authenticate(int sd) {
     }
     DEBUG_PRINT(("PASSWORD RECEIVED: %s\n", pass));
     // if credentials don't check denied login
+    if(!check_credentials(user, pass))
+    {
+        DEBUG_PRINT(("Credentials for %s:%s not found\n", user, pass));
+        return false;
+    }
 
     // confirm login
     return true;
