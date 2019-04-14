@@ -6,6 +6,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <err.h>
+#include <ctype.h>
 
 #include <netinet/in.h>
 #include "debug.h"
@@ -184,32 +185,94 @@ void operate(int sd) {
     }
 }
 
+bool isValidPortNumber(char *portNumber)
+{
+    int port = atoi(portNumber);
+    return (port < UINT16_MAX && port > 0);
+}
+
+unsigned int convert(char *st) {
+  char *x;
+  for (x = st ; *x ; x++) {
+    // if its not a valid string (only digits), just return 0
+    if (!isdigit(*x))
+      return 0L;
+  }
+  return (strtoul(st, 0L, 10));
+}
+
 /**
  * Run with
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
+    int sockfd, connfd, len; 
+    struct sockaddr_in servaddr, cli; 
+    char *server_portn = argv[1];
 
     // arguments checking
+    if(argc == 2 && isValidPortNumber(server_portn))
+    {
+        printf("arguments are valid :D\n");
+    } else
+    {
+        DEBUG_PRINT(("args: %d\nserverPort: %s\n", argc, server_portn));
+        printf("Wrong numer of arguments or argument formatting\nExpecting: ./mysrv 7280\nWhere the first arg is the server port\n");
+        exit(EXIT_FAILURE);
+    }
 
     // reserve sockets and variables space
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_addr.s_addr = htonl(INADDR_ANY); 
+    servaddr.sin_port = htons(convert(server_portn)); 
 
     // create server socket and check errors
-    
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    DEBUG_PRINT(("sockfd: %d\n", sockfd));
+    if (sockfd == -1) { 
+        printf("socket creation failed...\n"); 
+        exit(EXIT_FAILURE); 
+    } 
+        printf("Socket successfully created..\n");
+
     // bind master socket and check errors
+    if ((bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr))) != 0) { 
+        printf("socket bind failed...\n"); 
+        exit(EXIT_FAILURE); 
+    } 
+    printf("Socket successfully bind\n");
 
     // make it listen
+    if ((listen(sockfd, 10)) != 0)
+    { 
+        printf("Listen failed...\n"); 
+        exit(EXIT_FAILURE); 
+    } 
+    printf("Server listening..\n"); 
+    len = sizeof(cli); 
 
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+        connfd = accept(sockfd, (struct sockaddr *)&cli, &len); 
+        if (connfd < 0) { 
+            printf("server acccept failed...\n"); 
+            exit(EXIT_FAILURE); 
+        } 
+        printf("server acccept the client...\n");
 
         // send hello
-
+        int hello_len, bytes_sent;
+        hello_len = strlen(MSG_220);
+        DEBUG_PRINT(("Send hello length: %d\n", hello_len));
+        bytes_sent = send(sockfd, MSG_220, hello_len, 0);
+        DEBUG_PRINT(("Send hello bytes sent %d\n", bytes_sent));
         // operate only if authenticate is true
     }
 
     // close server socket
+    close(sockfd);
 
     return 0;
 }

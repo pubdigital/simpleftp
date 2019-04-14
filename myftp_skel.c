@@ -27,7 +27,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -216,11 +216,13 @@ int main (int argc, char *argv[]) {
     char *server_portn = argv[2];
 
     // arguments checking
-    if(argc == 3 && isValidIpAddress(server_ipaddr) && isValidPortNumber(server_portn)) {
+    if(argc == 3 && isValidIpAddress(server_ipaddr) && isValidPortNumber(server_portn))
+    {
         printf("arguments are valid :D\n");
-    } else {
+    } else
+    {
         DEBUG_PRINT(("args: %d\nserverIp: %s\nserverPort: %s\n", argc, server_ipaddr, server_portn));
-        printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x 80\nWhere the first arg is the server ip addr and the second one is the server port\n");
+        printf("Wrong numer of arguments or argument formatting\nExpecting: ./myftp x.x.x.x 2280\nWhere the first arg is the server ip addr and the second one is the server port\n");
         exit(EXIT_FAILURE);
     }
 
@@ -234,6 +236,7 @@ int main (int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    // set socket data 
     addr.sin_port = htons(convert(server_portn));
     DEBUG_PRINT(("addr.sin_port (without using htons): %u\n", convert(server_portn)));
     DEBUG_PRINT(("addr.sin_port: %u\n", addr.sin_port));
@@ -241,23 +244,22 @@ int main (int argc, char *argv[]) {
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_family = AF_INET;
 
+    // connect and check for errors
     // remember to use ports > 1024 if not, a binding error is likely to happen
     // binding error == port in use
-    if(bind(sd, (struct sockaddr *)&addr,sizeof(struct sockaddr_in) ) == -1)
+    if(connect(sd, (struct sockaddr *)&addr, sizeof(addr)) != 0)
     {
-        printf("Error binding socket\n");
+        printf("Connection with the server failed...\n");
         exit(EXIT_FAILURE);
     }
 
-    printf("Successfully bound to port %s\n", server_portn);
-
-
-    
-    // set socket data    
-
-    // connect and check for errors
+    printf("Successfully connected to server %s\n", server_portn);   
 
     // if receive hello proceed with authenticate and operate if not warning
+    if(!recv_msg(sd, 220, NULL))
+    {
+        printf("Hello message not received from server\n");
+    }
 
     // close socket
     close(sd);
