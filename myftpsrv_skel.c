@@ -90,8 +90,9 @@ bool recv_cmd(int sd, char *operation, char *param) {
  * return: true if not problem arise or else
  * notes: the MSG_x have preformated for these use
  **/
-bool send_ans(int sd, char *message, ...){
+bool send_ans(int sd, char *message, ...) {
     char buffer[BUFSIZE];
+    int bytes_sent;
 
     va_list args;
     va_start(args, message);
@@ -99,10 +100,13 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
-
-
-
-
+    bytes_sent = send(sd, buffer, strlen(buffer), 0);
+    if(bytes_sent == -1)
+    {
+        warn("Error sending to sd: %d message: %s\n", sd, buffer);
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -193,11 +197,11 @@ bool authenticate(int sd) {
         return false;
     }
     // ask for password
-    bytes_sent = send(sd, MSG_331, strlen(MSG_331), 0);
-    if(bytes_sent == -1)
+    if(!send_ans(sd, MSG_331, user))
     {
-        perror("send error at authenticate: ");
+        return false;
     }
+
     // wait to receive PASS action
     if(!recv_cmd(sd, "PASS", pass))
     {
@@ -218,11 +222,11 @@ bool authenticate(int sd) {
     }
 
     // confirm login
-    bytes_sent = send(sd, MSG_230, strlen(MSG_230), 0);
-    if(bytes_sent == -1)
+    if(!send_ans(sd, MSG_230, user)) 
     {
-        perror("send error at confirm login: ");
+        return false;
     }
+
     return true;
 }
 
@@ -338,21 +342,15 @@ int main (int argc, char *argv[]) {
         printf("server acccept the client...\n");
 
         // send hello
-        int hello_len, bytes_sent;
-        hello_len = strlen(MSG_220);
-        DEBUG_PRINT(("Send hello length: %d\n", hello_len));
-        bytes_sent = send(connfd, MSG_220, hello_len, 0);
-        if(bytes_sent == -1)
+        if(!send_ans(connfd, MSG_220))
         {
             perror("send error: ");
         }
-        DEBUG_PRINT(("Send hello bytes sent %d\n", bytes_sent));
 
         // operate only if authenticate is true
         if(!authenticate(connfd))
         {
             warn("Error on authentication of user\n");
-            // TODO: send login incorrect msg
         }
 
     }
