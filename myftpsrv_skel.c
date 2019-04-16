@@ -120,19 +120,35 @@ void retr(int sd, char *file_path) {
  **/
 bool check_credentials(char *user, char *pass) {
     FILE *file;
-    char *path = "./ftpusers", *line = NULL, cred[100];
+    char *path = "./ftpusers", *line = NULL, cred[200];
     size_t len = 0;
     bool found = false;
+    int encontrado = 0;
 
-    // make the credential string
-
-    // check if ftpusers file it's present
-
-    // search for credential string
-
-    // close file and release any pointes if necessary
-
-    // return search status
+    strcpy(cred,user);
+    strcat(cred,":");
+    strcat(cred,pass);
+    strcat(cred,"\n");    
+    //printf("cadena de busqueda//%s\n",cred);
+    file = fopen(path,"r");
+    line = (char*)malloc(sizeof(char) * 100);
+    //printf("abriendo archivo");
+    if(file == NULL){
+       printf("No existe el archivo");
+    }else{
+          while(!feof(file)){
+            fgets(line,100,file);
+            if(strcmp(cred,line) == 0){
+                found = true;
+                encontrado=1;
+            }
+          }
+    free(line);
+    fclose(file);
+     }
+    printf("%d\n",encontrado);
+    //return found;
+    //ahora imprime 1 si lo encontro...
 }
 
 /**
@@ -189,6 +205,9 @@ void operate(int sd) {
  **/
 int main (int argc, char *argv[]) {
 
+    char user[100] = "nico";
+    char pass[100] = "123456";
+    check_credentials(user,pass);
     // arguments checking
 
     // reserve sockets and variables space
@@ -200,13 +219,13 @@ int main (int argc, char *argv[]) {
     // make it listen
 
     // main loop
-    while (true) {
+//    while (true) {
         // accept connectiones sequentially and check errors
 
         // send hello
 
         // operate only if authenticate is true
-    }
+ //   }
 
     // close server socket
 
