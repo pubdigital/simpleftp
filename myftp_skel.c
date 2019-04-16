@@ -1,3 +1,5 @@
+//Franco Mellano - Tercer año AUS
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -180,24 +182,47 @@ void operate(int sd) {
 }
 
 /**
+ * function: si hay error, se imprime mensaje y se corta el programa
+ **/
+void DieWithError(char * msg){
+    printf("%s\n", msg);
+    exit(-1);
+}
+
+/**
  * Run with
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
-    struct sockaddr_in addr;
+
+    // reserva y iniciacion de variables
+    int clientSocket, recvMsgSize;
+    int serverPort = atoi(argv[2]);
+    char buffer[BUFSIZE];
+    char *serverIP = argv[1];
+    struct sockaddr_in serverAddr, clientAddr;
 
     // arguments checking
+    if (argc!=3) DieWithError("Numero de argumentos invalido.\n");
 
     // create socket and check for errors
+    if ((clientSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)  DieWithError("Fallo en la creacion de socket");
     
-    // set socket data    
-
+    // set socket data 
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(serverPort);
+    serverAddr.sin_addr.s_addr = inet_addr(serverIP);
+ 
     // connect and check for errors
+    if (connect(clientSocket, (struct sockaddr *) &serverAddr,sizeof(serverAddr)) < 0) DieWithError("Fallo en el connect()");
 
     // if receive hello proceed with authenticate and operate if not warning
+    for(;;){
+
+    }
 
     // close socket
+    if (close(clientSocket) > 0) DieWithError("Fallo al cerrar socket");
 
     return 0;
 }
