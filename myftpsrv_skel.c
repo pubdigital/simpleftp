@@ -1,3 +1,5 @@
+//Franco Mellano - Tercer año AUS
+
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -21,6 +23,14 @@
 #define MSG_550 "550 %s: no such file or directory\r\n"
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
+
+/**
+ * function: si hay error, se imprime mensaje y se corta el programa
+ **/
+void DieWithError(char * msg){
+    printf("%s\n", msg);
+    exit(-1);
+}
 
 /**
  * function: receive the commands from the client
@@ -112,8 +122,9 @@ void retr(int sd, char *file_path) {
 
     // send a completed transfer message
 }
+
 /**
- * funcion: check valid credentials in ftpusers file
+ * function: check valid credentials in ftpusers file
  * user: login user name
  * pass: user password
  * return: true if found or false if not
@@ -125,14 +136,34 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
+    strcpy(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
 
     // check if ftpusers file it's present
+    if((file = fopen(path, "r")) == NULL) DieWithError("Fallo en el fopen.\n");
 
     // search for credential string
+    line = (char*)malloc(sizeof(char) * 100);
+    while(!feof(file)){  
+                
+        fscanf(file, "%s", line);
+        printf("%s\n", line);
 
+        if(strcmp(cred, line) == 0){
+            printf("%s\n", line);
+            found = true;
+        }
+
+    }
+    free(line);
+    
     // close file and release any pointes if necessary
+    fclose(file);
 
     // return search status
+    return found;
+
 }
 
 /**
@@ -190,25 +221,41 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if (argc!=2) DieWithError("Numero de argumentos invalido.\n");
 
     // reserve sockets and variables space
+    char buffer[BUFSIZE];
+    int serverSocket, clientSocket, clientLen, recvMsgSize;
+    int serverPort = atoi(argv[1]);
+    struct sockaddr_in serverAddr, clientAddr;
+    serverAddr.sin_family = AF_INET;
+    serverAddr.sin_port = htons(serverPort);
+    serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     // create server socket and check errors
-    
+    if ((serverSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) DieWithError("Fallo en la creacion de socket\n");
+
     // bind master socket and check errors
+    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) DieWithError("Fallo en el bind()\n");
 
     // make it listen
+    if (listen(serverSocket, 3) < 0) DieWithError("Fallo en el listen()\n");
 
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+        clientLen = sizeof(clientAddr);
+        if((clientSocket = accept(serverSocket,(struct sockaddr *) &serverAddr, &clientLen) < 0)) DieWithError("Fallo en el accept()\n");
 
-        // send hello
+        // send hello       
 
         // operate only if authenticate is true
+
     }
 
     // close server socket
+    if (close(serverSocket) > 0) DieWithError("Fallo al cerrar socket");
 
     return 0;
 }
+
