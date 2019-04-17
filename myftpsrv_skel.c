@@ -94,7 +94,7 @@ bool send_ans(int sd, char *message, ...){
  **/
 
 void retr(int sd, char *file_path) {
-    FILE *file;    
+    FILE *file;
     int bread;
     long fsize;
     char buffer[BUFSIZE];
@@ -112,6 +112,10 @@ void retr(int sd, char *file_path) {
 
     // send a completed transfer message
 }
+
+int min(int x, int y) {
+    return (x < y) ? x : y;
+}
 /**
  * funcion: check valid credentials in ftpusers file
  * user: login user name
@@ -120,19 +124,44 @@ void retr(int sd, char *file_path) {
  **/
 bool check_credentials(char *user, char *pass) {
     FILE *file;
-    char *path = "./ftpusers", *line = NULL, cred[100];
+    char *path = "./ftpusers";
+    char *line = NULL, cred[100];
     size_t len = 0;
     bool found = false;
 
     // make the credential string
+    strcpy(cred, "");
+    strcat(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
+    strcat(cred, "\n");
 
     // check if ftpusers file it's present
+    file = fopen(path, "r");
+    if (file == NULL) return found;
 
     // search for credential string
+    line = (char *)malloc(sizeof(char)*100);
+    while (feof(file) == 0) {
+        fgets(line, 100, file);
+
+        if (strcmp(cred, line) == 0) {
+            found = true;
+            break;
+        }
+    }
 
     // close file and release any pointes if necessary
+    fclose(file);
+    free(line);
 
     // return search status
+    if (!found) {
+        printf(MSG_530);
+    } else {
+        printf(MSG_230, user);
+    }
+    return found;
 }
 
 /**
@@ -188,25 +217,26 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
+    // check_credentials("charly", "passcharly");
 
     // arguments checking
 
     // reserve sockets and variables space
 
     // create server socket and check errors
-    
+
     // bind master socket and check errors
 
     // make it listen
 
     // main loop
-    while (true) {
+//    while (true) {
         // accept connectiones sequentially and check errors
 
         // send hello
 
         // operate only if authenticate is true
-    }
+//    }
 
     // close server socket
 
