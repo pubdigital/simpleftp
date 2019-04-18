@@ -125,14 +125,40 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
+    strcpy(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
+    strcat(cred, "\n");
 
     // check if ftpusers file it's present
+    file = fopen(path, "r");
+    if (file == NULL)
+    {
+      printf(MSG_550, path);
+      return -1;
+    }
 
     // search for credential string
+    line = (char*) malloc (sizeof(char)*100);
+
+    while(!feof(file)) {
+        fgets(line, 100, file);
+
+        if(strcmp(cred, line) == 0) {
+            found = true;
+        }
+    }
 
     // close file and release any pointes if necessary
+    fclose(file);
+    free(line);
 
     // return search status
+    if (found == true) {
+        printf(MSG_230, user);
+    } else {
+        printf(MSG_530);
+    }
 }
 
 /**
@@ -188,6 +214,8 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
+    
+    //check_credentials("nano","passnano");
 
     // arguments checking
 
