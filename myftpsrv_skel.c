@@ -68,8 +68,9 @@ bool recv_cmd(int sd, char *operation, char *param) {
         warn("not valid ftp command");
         return false;
     } else {
+        DEBUG_PRINT(("BEFORE STRcpy, operation: %s\n", operation));
         if (operation[0] == '\0') strcpy(operation, token);
-        DEBUG_PRINT(("AFTER STRcpy\n"));
+        DEBUG_PRINT(("AFTER STRcpy, operation: %s\n", operation));
         if (strcmp(operation, token)) {
             warn("abnormal client flow: did not send %s command", operation);
             return false;
@@ -122,8 +123,17 @@ void retr(int sd, char *file_path) {
     char buffer[BUFSIZE];
 
     // check if file exists if not inform error to client
-
+    if(access( file_path, F_OK ) == -1) {
+        DEBUG_PRINT(("%s file doesnt exist\n", file_path));
+        send_ans(sd, MSG_550, file_path);
+        return;
+    }
     // send a success message with the file length
+    file = fopen(file_path, "r") ;
+    fseek(file, 0L, SEEK_END);
+    fsize = ftell(file);
+    rewind(file);
+    send_ans(sd, MSG_299, file_path, fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
@@ -131,8 +141,9 @@ void retr(int sd, char *file_path) {
     // send the file
 
     // close the file
-
+    fclose(file);
     // send a completed transfer message
+    send_ans(sd, MSG_226);
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -236,21 +247,20 @@ bool authenticate(int sd) {
  **/
 
 void operate(int sd) {
-    char op[CMDSIZE], param[PARSIZE];
+    char op[5], param[PARSIZE];
 
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+        recv_cmd(sd, op, param);
+        DEBUG_PRINT(("sd: %d op: %s param: %s \n", sd, op, param));
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
+            close(sd);
             break;
         } else {
             // invalid command
@@ -348,8 +358,10 @@ int main (int argc, char *argv[]) {
         }
 
         // operate only if authenticate is true
-        if(!authenticate(connfd))
+        if(authenticate(connfd))
         {
+            operate(connfd);
+        } else {
             warn("Error on authentication of user\n");
         }
 

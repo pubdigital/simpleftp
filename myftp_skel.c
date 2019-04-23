@@ -134,9 +134,12 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
-
+    send_msg(sd, "RETR", file_name);
     // check for the response
-
+    if(!recv_msg(sd, 299, desc))
+    {
+        warn("299 message not received from server\n");
+    }
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
     sscanf(buffer, "File %*s size %d bytes", &f_size);
@@ -145,7 +148,6 @@ void get(int sd, char *file_name) {
     file = fopen(file_name, "w");
 
     //receive the file
-
 
 
     // close the file
@@ -161,9 +163,9 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
-
+    send_msg(sd, "QUIT", NULL);
     // receive the answer from the server
-
+    recv_msg(sd, 221, NULL);
 }
 
 /**
@@ -276,6 +278,7 @@ int main (int argc, char *argv[]) {
         warn("Hello message not received from server");
     }
     authenticate(sd);
+    operate(sd);
 
     // close socket
     close(sd);
