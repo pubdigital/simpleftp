@@ -9,7 +9,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <netdb.h>
+
 #define BUFSIZE 512
+
+void fatal(char *s){
+ 
+  printf("%s\n",s);
+  exit(1);
+}
 
 /**
  * function: receive and analize the answer from the server
@@ -185,19 +193,31 @@ void operate(int sd) {
  **/
 int main (int argc, char *argv[]) {
     int sd;
-    struct sockaddr_in addr;
+    
+    struct hostent *h;		    
+    struct sockaddr_in channel;	
 
     // arguments checking
+    if(argc != 3) fatal("Usar: cliente nombre-servidor nombre-archivo");
+    h = gethostbyname(argv[1]);	//Busca la direccion IP del host
+    if(!h) fatal("Falla en gethostbyname");
 
     // create socket and check for errors
-    
+    if((sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) fatal("falla en socket");
+
     // set socket data    
+    memset(&channel, 0, sizeof(channel));
+    channel.sin_family = AF_INET;
+    memcpy(&channel.sin_addr.s_addr, h->h_addr, h->h_length);
+    channel.sin_port = htons(atoi(argv[2]));
 
     // connect and check for errors
+    if((connect(sd, (struct sockaddr *) &channel, sizeof(channel)) < 0)) fatal("falla en connect");
 
     // if receive hello proceed with authenticate and operate if not warning
 
     // close socket
+    close(sd);
 
     return 0;
 }

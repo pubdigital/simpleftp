@@ -22,6 +22,12 @@
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
 
+void fatal(char *s){
+ 
+  printf("%s\n",s);
+  exit(1);
+}
+
 /**
  * function: receive the commands from the client
  * sd: socket descriptor
@@ -190,25 +196,42 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if(argc!=2)fatal("Especifique numero de puerto");
 
     // reserve sockets and variables space
+    int s,b,l,c,sa,sin_size;
+    struct sockaddr_in channel;
+    struct sockaddr_in client;
 
     // create server socket and check errors
+    if((s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) fatal("falla en socket");
     
+    memset(&channel, 0, sizeof(channel));
+    channel.sin_family = AF_INET;
+    channel.sin_addr.s_addr = htonl(INADDR_ANY);
+    channel.sin_port = htons(atoi(argv[1]));    
+
     // bind master socket and check errors
+    if((b = bind(s, (struct sockaddr *) &channel, sizeof(channel)) < 0)) fatal("falla en bind");
 
     // make it listen
+    if((l = listen(s, CMDSIZE)) < 0) fatal("falla en listen");
 
     // main loop
     while (true) {
+        sin_size = sizeof(struct sockaddr_in);
         // accept connectiones sequentially and check errors
-
+        sa = accept(s,(struct sockaddr *)&client,&sin_size);
+        if(sa < 0) fatal("falla en accept");
+        else printf("Cliente conectado\n");
+   
         // send hello
 
         // operate only if authenticate is true
     }
 
     // close server socket
+    close(s);
 
     return 0;
 }
