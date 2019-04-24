@@ -45,7 +45,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
-
+    if((recv_s = recv(sd, buffer, BUFSIZE, 0)) < 0) fatal("falla en recv");
 
 
     // expunge the terminator characters from the buffer
@@ -87,8 +87,8 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
-
-
+    if(send(sd, buffer, BUFSIZE, 0)) return true;
+    else return false;
 
 
 }
@@ -226,7 +226,9 @@ int main (int argc, char *argv[]) {
         else printf("Cliente conectado\n");
    
         // send hello
+        if(send_ans(sa,MSG_220)==false) break;
 
+        printf("%d\n",recv_cmd(sa,"USER",NULL));  
         // operate only if authenticate is true
     }
 

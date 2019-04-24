@@ -33,7 +33,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -64,7 +64,7 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    if(send(sd, buffer, BUFSIZE, 0) < 0) fatal("falla en send"); 
 }
 
 /**
@@ -92,12 +92,11 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+   
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
 
     // ask for password
     printf("passwd: ");
@@ -105,12 +104,10 @@ void authenticate(int sd) {
 
     // send the command to the server
 
-
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
-
 }
 
 /**
@@ -215,7 +212,11 @@ int main (int argc, char *argv[]) {
     if((connect(sd, (struct sockaddr *) &channel, sizeof(channel)) < 0)) fatal("falla en connect");
 
     // if receive hello proceed with authenticate and operate if not warning
-
+    if(recv_msg(sd,220,NULL)){
+	printf("Puede iniciar");
+    }else{
+      fatal("falla en inicio");
+    }
     // close socket
     close(sd);
 
