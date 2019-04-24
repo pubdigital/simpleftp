@@ -92,22 +92,26 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
+    send_msg(sd,"USER",input);
    
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
+    if(recv_msg(sd,331,NULL) < 0) fatal("falla mensaje 331");
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
+    send_msg(sd,"PASS",input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
+    if(recv_msg(sd,230,NULL) < 0) fatal("falla mensaje 230");
 }
 
 /**
@@ -213,7 +217,7 @@ int main (int argc, char *argv[]) {
 
     // if receive hello proceed with authenticate and operate if not warning
     if(recv_msg(sd,220,NULL)){
-	printf("Puede iniciar");
+      authenticate(sd);
     }else{
       fatal("falla en inicio");
     }

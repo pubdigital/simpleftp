@@ -47,7 +47,6 @@ bool recv_cmd(int sd, char *operation, char *param) {
     // receive the command in the buffer and check for errors
     if((recv_s = recv(sd, buffer, BUFSIZE, 0)) < 0) fatal("falla en recv");
 
-
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
 
@@ -131,14 +130,39 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
+    len = strlen(pass);
+    pass[len] = '\n';
 
     // check if ftpusers file it's present
-
+    file = fopen(path, "r");
+    if(file == NULL) fatal("error al abrir archivo ftpusers");
+    
     // search for credential string
+    while(fgets(cred,100,file) != NULL && found == false){
+        
+        line = strtok(cred,":");
+        
+        while(line != NULL){
+
+          if(strcmp(line,user)==0){
+            printf("Usuario encontrado\n");
+            line = strtok(NULL,":");
+            
+            if(strcmp(line,pass)==0){
+              printf("Contraseña correcta encontrado\n");   
+              found = true;
+              break;
+            }
+          }
+          line = strtok(NULL,":");
+        } 
+    }
 
     // close file and release any pointes if necessary
+    fclose(file);
 
     // return search status
+    return found;
 }
 
 /**
@@ -150,14 +174,23 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    recv_cmd(sd,"USER",user);
 
     // ask for password
+    send_ans(sd,MSG_331);
 
     // wait to receive PASS action
+    recv_cmd(sd,"PASS",pass);
 
-    // if credentials don't check denied login
-
+    // if credentials don't check denied login	*****************************
+    if(!(check_credentials(user,pass))){
+      send_ans(sd,MSG_530);
+      return false;
+    } else {
     // confirm login
+      send_ans(sd,MSG_230,user);
+      return true;
+    } 
 }
 
 /**
@@ -227,9 +260,10 @@ int main (int argc, char *argv[]) {
    
         // send hello
         if(send_ans(sa,MSG_220)==false) break;
-
-        printf("%d\n",recv_cmd(sa,"USER",NULL));  
+  
         // operate only if authenticate is true
+        if(authenticate(sa)) printf("Login exitoso\n");
+        close(sa);
     }
 
     // close server socket
