@@ -188,16 +188,39 @@ int main (int argc, char *argv[]) {
     struct sockaddr_in addr;
 
     // arguments checking
+    if (argc != 3) {
+        printf("usage:%s <SERVER_IP> <SERVER_PORT>\n", argv[0]);
+        exit(1);
+    }
 
     // create socket and check for errors
-    
+    if ((sd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
+
     // set socket data    
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(*argv[2]); 
+    inet_aton(argv[1], &(addr.sin_addr));
+    memset(&(addr.sin_zero), '\0', 8);
 
     // connect and check for errors
+    if (connect(sd, (struct sockaddr *)&addr, sizeof(struct sockaddr)) == -1) {
+        perror("connect");
+        exit(1);
+    }
 
     // if receive hello proceed with authenticate and operate if not warning
+    if (!recv_msg(sd, 220, NULL)) {
+        warn("error receiving data");
+    } else {
+        authenticate(sd);
+        operate(sd);
+    }
 
     // close socket
-
+    close(sd);
+    
     return 0;
 }
