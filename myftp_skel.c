@@ -14,9 +14,17 @@
 #define BUFSIZE 512
 
 /**
+ * function: si hay error, se imprime mensaje y se corta el programa
+ **/
+void DieWithError(char * msg){
+    printf("%s\n", msg);
+    exit(-1);
+}
+
+/**
  * function: receive and analize the answer from the server
  * sd: socket descriptor
- * code: three leter numerical code to check if received
+ * code: three letter numerical code to check if received
  * text: normally NULL but if a pointer if received as parameter
  *       then a copy of the optional message from the response
  *       is copied
@@ -82,26 +90,25 @@ void authenticate(int sd) {
     int code;
 
     // ask for user
-    printf("username: ");
-    input = read_input();
+
 
     // send the command to the server
+
     
     // relese memory
-    free(input);
+
 
     // wait to receive password requirement and check for errors
 
 
     // ask for password
-    printf("passwd: ");
-    input = read_input();
+
 
     // send the command to the server
 
 
     // release memory
-    free(input);
+
 
     // wait for answer and process it and check for errors
 
@@ -182,21 +189,13 @@ void operate(int sd) {
 }
 
 /**
- * function: si hay error, se imprime mensaje y se corta el programa
- **/
-void DieWithError(char * msg){
-    printf("%s\n", msg);
-    exit(-1);
-}
-
-/**
  * Run with
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
 
-    // reserva y iniciacion de variables
-    int clientSocket, recvMsgSize;
+    // reserva e iniciacion de variables
+    int clientSocket;
     int serverPort = atoi(argv[2]);
     char buffer[BUFSIZE];
     char *serverIP = argv[1];
@@ -207,10 +206,11 @@ int main (int argc, char *argv[]) {
 
     // create socket and check for errors
     if ((clientSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)  DieWithError("Fallo en la creacion de socket");
-    
+
     // set socket data 
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(serverPort);
+    if (inet_pton(AF_INET, serverIP, &serverAddr.sin_addr) < 0) DieWithError("IP incorrecta.");
     serverAddr.sin_addr.s_addr = inet_addr(serverIP);
  
     // connect and check for errors
@@ -218,7 +218,8 @@ int main (int argc, char *argv[]) {
 
     // if receive hello proceed with authenticate and operate if not warning
     for(;;){
-
+        recv(clientSocket, buffer, BUFSIZE, 0);
+        printf("%s", buffer);
     }
 
     // close socket

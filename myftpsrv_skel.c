@@ -92,9 +92,6 @@ bool send_ans(int sd, char *message, ...){
     va_end(args);
     // send answer preformated and check errors
 
-
-
-
 }
 
 /**
@@ -144,7 +141,7 @@ bool check_credentials(char *user, char *pass) {
     if((file = fopen(path, "r")) == NULL) DieWithError("Fallo en el fopen.\n");
 
     // search for credential string
-    line = (char*)malloc(sizeof(char) * 100);
+    line = (char*)malloc(sizeof(char) * PARSIZE);
     while(!feof(file)){  
                 
         fscanf(file, "%s", line);
@@ -209,10 +206,11 @@ void operate(int sd) {
             break;
         } else {
             // invalid command
-            // furute use
+            // future use
         }
     }
 }
+
 
 /**
  * Run with
@@ -224,30 +222,42 @@ int main (int argc, char *argv[]) {
     if (argc!=2) DieWithError("Numero de argumentos invalido.\n");
 
     // reserve sockets and variables space
-    char buffer[BUFSIZE];
-    int serverSocket, clientSocket, clientLen, recvMsgSize;
     int serverPort = atoi(argv[1]);
+    int serverSocket, clientSocket, clientLen;
     struct sockaddr_in serverAddr, clientAddr;
     serverAddr.sin_family = AF_INET;
     serverAddr.sin_port = htons(serverPort);
     serverAddr.sin_addr.s_addr = htonl(INADDR_ANY);
 
     // create server socket and check errors
-    if ((serverSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) DieWithError("Fallo en la creacion de socket\n");
+    if ((serverSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) 
+        DieWithError("Fallo en la creacion de socket\n");
+    else
+        printf("Se creo el server socket con exito.\n");
 
     // bind master socket and check errors
-    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) DieWithError("Fallo en el bind()\n");
-
+    if (bind(serverSocket, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0) 
+        DieWithError("Fallo en el bind()\n");
+    else    
+        printf("Se creo el enlace con el puerto %d con exito.\n", serverPort);
+    
     // make it listen
-    if (listen(serverSocket, 3) < 0) DieWithError("Fallo en el listen()\n");
+    if (listen(serverSocket, 3) < 0) 
+        DieWithError("Fallo en el listen()\n");
+    else
+        printf("Escuchando...\n");
 
     // main loop
     while (true) {
-        // accept connectiones sequentially and check errors
+        // accept connections sequentially and check errors
         clientLen = sizeof(clientAddr);
-        if((clientSocket = accept(serverSocket,(struct sockaddr *) &serverAddr, &clientLen) < 0)) DieWithError("Fallo en el accept()\n");
-
+        if((clientSocket = accept(serverSocket,(struct sockaddr *) &clientAddr, &clientLen)) < 0)
+            DieWithError("Fallo en el accept()\n");
+        else
+            printf("Se acepto la conexion con un cliente exitosamente.\n"); 
+    
         // send hello       
+        send(clientSocket, MSG_220, strlen(MSG_220), 0);
 
         // operate only if authenticate is true
 
@@ -258,4 +268,3 @@ int main (int argc, char *argv[]) {
 
     return 0;
 }
-
