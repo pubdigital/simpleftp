@@ -9,9 +9,12 @@
 
 #include <netinet/in.h>
 
+#include <arpa/inet.h>
+
 #define BUFSIZE 512
 #define CMDSIZE 4
 #define PARSIZE 100
+#define BACKLOG 10
 
 #define MSG_220 "220 srvFtp version 1.0\r\n"
 #define MSG_331 "331 Password required for %s\r\n"
@@ -92,7 +95,6 @@ bool send_ans(int sd, char *message, ...){
  * sd: socket descriptor
  * file_path: name of the RETR file
  **/
-
 void retr(int sd, char *file_path) {
     FILE *file;    
     int bread;
@@ -112,6 +114,7 @@ void retr(int sd, char *file_path) {
 
     // send a completed transfer message
 }
+
 /**
  * funcion: check valid credentials in ftpusers file
  * user: login user name
@@ -119,7 +122,7 @@ void retr(int sd, char *file_path) {
  * return: true if found or false if not
  **/
 bool check_credentials(char *user, char *pass) {
-    FILE *file = NULL;
+    FILE *file;
     char *path = "./ftpusers", *line = NULL, cred[100];
     size_t len = 0;
     bool found = false;
@@ -135,17 +138,18 @@ bool check_credentials(char *user, char *pass) {
         exit(1);
     } else {
     // search for credential string
-        line = (char*)(malloc(strlen(cred)+1));
+        len = strlen(cred)+1;
+        line = (char*)(malloc(len));
         while (!feof(file)) {
-            fgets(line, strlen(cred)+1, file);
+            fgets(line, len, file);
             if (strcmp(cred, line) == 0) {
                 found = true;
                 break;
             }
         }
     // close file and release any pointes if necessary
-        free(line);
         fclose(file);
+        free(line);
     }
     
     // return search status
@@ -175,7 +179,6 @@ bool authenticate(int sd) {
  *  function: execute all commands (RETR|QUIT)
  *  sd: socket descriptor
  **/
-
 void operate(int sd) {
     char op[CMDSIZE], param[PARSIZE];
 
@@ -205,27 +208,61 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-
     // arguments checking
+    if (argc != 2) {
+        printf("usage:%s <SERVER_PORT>\n", argv[0]);
+        exit(1);
+    }
 
     // reserve sockets and variables space
+    int sockfd, new_fd;
+    struct sockaddr_in my_addr;
+    struct sockaddr_in their_addr;
+    int sin_size;
+
+    my_addr.sin_family = AF_INET;         
+    my_addr.sin_port = htons(*argv[1]);   
+    my_addr.sin_addr.s_addr = INADDR_ANY; 
+    memset(&(my_addr.sin_zero), '\0', 8); 
 
     // create server socket and check errors
+    if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("socket");
+        exit(1);
+    }
     
     // bind master socket and check errors
+    if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1) {
+        perror("bind");
+        exit(1);
+    }
 
     // make it listen
+    if (listen(sockfd, BACKLOG) == -1) {
+        perror("listen");
+        exit(1);
+    }
 
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
-
+        sin_size = sizeof(struct sockaddr_in);
+        if ((new_fd = accept(sockfd, (struct sockaddr *)&their_addr,(socklen_t *)&sin_size)) == -1) {
+            perror("accept");
+            continue;
+        }
+        printf("server: got connection from %s\n", inet_ntoa(their_addr.sin_addr));
+        
         // send hello
+        send_ans(new_fd, MSG_220);
 
         // operate only if authenticate is true
+        if(!authenticate(new_fd)) close(new_fd);
+            else operate(new_fd);
     }
 
     // close server socket
-
+    close(sockfd);
+    
     return 0;
 }
