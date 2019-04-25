@@ -13,7 +13,7 @@
 #define CMDSIZE 4
 #define PARSIZE 100
 
-#define MSG_220 "220 srvFtp version 1.0\r\n"
+#define MSG_220 "220 srvFtp version 1.0\n"
 #define MSG_331 "331 Password required for %s\r\n"
 #define MSG_230 "230 User %s logged in\r\n"
 #define MSG_530 "530 Login incorrect\r\n"
@@ -135,7 +135,7 @@ bool check_credentials(char *user, char *pass) {
     }
 
     // search for credential string
-    while(){
+    while(!feof(file)){
         len = sizeof(line);
         line = (char *) malloc(len);
 
@@ -209,25 +209,61 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if(argc!=2){
+    	printf("Cantidad invalida de argumentos.\n");
+    	exit(-1);
+    }
 
     // reserve sockets and variables space
+    int socketServer, status, puerto, clienteLen, socketCliente;
+	struct sockaddr_in puertoSer, puertoCli;
+
+	puertoSer.sin_family = AF_INET;
+	puerto = atoi(argv[1]);
+	puertoSer.sin_port = htons(puerto);
+    puertoSer.sin_addr.s_addr = htonl(INADDR_ANY);
 
     // create server socket and check errors
+    if((socketServer = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
+        printf("Error en creacion de socket.\n");
+        exit(-1);
+    }
     
     // bind master socket and check errors
+    if(bind(socketServer, (struct sockaddr *) &puertoSer, sizeof(puertoSer)) < 0){
+    	printf("No se completo el bind. \n");
+    	exit(-1);
+    }
 
     // make it listen
+    if((listen(socketServer, 1) < 0)){
+    	printf("No se pudo hacer el listen.\n");
+    	exit(-1);
+    }
+    printf("Escuchando.\n");
 
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+        clienteLen = sizeof(puertoCli);
+        if((socketCliente = accept(socketServer, (struct sockaddr *) &puertoSer, &clienteLen)) < 0){
+        	printf("No se pudo aceptar.\n");
+        	exit(-1);
+        }
+        printf("Conectado a un cliente.\n");
 
         // send hello
+        send(socketCliente, MSG_220, strlen(MSG_220), 0);
 
         // operate only if authenticate is true
     }
 
     // close server socket
+    status = close(socketServer);
+    if(status < 0){
+    	printf("No se pudo cerrar el socket.\n");
+    	exit(-1);
+    }
 
     return 0;
 }

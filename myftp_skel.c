@@ -184,18 +184,39 @@ void operate(int sd) {
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
+    int sd, serverPort;
     struct sockaddr_in addr;
+    serverPort = atoi(argv[2]);
+    char *serverIP = argv[1];
+    char buffer[BUFSIZE];
 
     // arguments checking
+    if(argc != 3){
+        printf("Cantidad invalida de argumentos.\n");
+        exit(-1);
+    }
 
     // create socket and check for errors
+    if((sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0){
+        printf("Error en creacion de socket.\n");
+        exit(-1);
+    }
     
-    // set socket data    
+    // set socket data
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(serverPort);
+    addr.sin_addr.s_addr = inet_addr(serverIP);
 
     // connect and check for errors
+    if((connect(sd, (struct sockaddr *) &addr, sizeof(addr))) < 0){
+        printf("No se realizo el connect.\n");
+        exit(-1);
+    }
+    printf("Conectado a un server.\n");
 
     // if receive hello proceed with authenticate and operate if not warning
+    recv(sd, buffer, BUFSIZE, 0);
+    printf("%s", buffer);
 
     // close socket
 
