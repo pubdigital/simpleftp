@@ -186,18 +186,38 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
     int sd;
     struct sockaddr_in addr;
-
+    char linea[BUFSIZE];
     // arguments checking
+    if(argc != 3){
+        printf("Error, ingrese la  direccion IP y el puerto respectivamente\n");
+        return -1;
+    }
 
     // create socket and check for errors
-    
-    // set socket data    
-
+    sd = socket(PF_INET,SOCK_STREAM,0);
+    if (sd < 0) {
+        printf("Error,No se pudo abrir socket\n");
+        return -1;
+    }
+    // set socket data
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(atoi(argv[2]));
+    inet_aton(argv[1],&addr.sin_addr);
     // connect and check for errors
-
+    if (connect(sd,(struct sockaddr *) &addr, sizeof(addr)) <0) {
+        printf("Error al conectar\n");
+        return -1;
+    }
     // if receive hello proceed with authenticate and operate if not warning
+    if(!recv_msg(sd,220,NULL))
+    {
+      printf("No se pudo leer hello\n" );
+      return -1;
+    }
+    authenticate(sd);
 
     // close socket
+    close(sd);
 
     return 0;
 }
