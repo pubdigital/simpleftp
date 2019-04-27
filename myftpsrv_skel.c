@@ -211,25 +211,63 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
-
+    if(argc != 2){
+        printf("Error, ingrese el puerto\n");
+        return -1;
+    }
     // reserve sockets and variables space
-
+    typedef struct sockaddr *sad;
+    int sockfd,sock_send;
+    struct sockaddr_in sin1, peer_addr;
+    socklen_t peer_addr_size = sizeof(struct sockaddr_in);
+    int PORT = atoi(argv[1]);
     // create server socket and check errors
-    
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    sin1.sin_family = AF_INET; // addres family
+    sin1.sin_port=htons(PORT); // funcion que cambia a little o big endian
+    sin1.sin_addr.s_addr= INADDR_ANY; // ubicada en inet.h
+    if(sockfd <0)
+    {
+        printf("No se pudo crear socket\n");
+        return -1;
+    }
+      printf("se pudo crear socket\n");
     // bind master socket and check errors
-
+    if ((bind (sockfd, (sad) &sin1, sizeof sin1)) < 0)
+    {
+        printf("No se pudo enlazar el socket\n");
+        return -1;
+    }
+    printf("se pudo enlazar el socket\n");
     // make it listen
-
+    if(listen(sockfd,5)<0)
+    {
+        printf("El socket no está escuchando\n");
+        return -1;
+    }
+    printf("El socket está escuchando\n");
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
-
+        if((sock_send = accept(sockfd, (sad) &peer_addr,&peer_addr_size)) < 0){
+            printf("El socket no acepto la conección\n");
+            continue;
+        }
+        printf("El socket acepto la conección\n");
         // send hello
-
+        if(!send_ans(sock_send,MSG_220)){
+            printf("El mensaje hello no se a podido enviar\n");
+            continue;
+        }
+        printf("El mensaje hello se a podido enviar\n");
         // operate only if authenticate is true
+        if(!authenticate(sock_send)){
+            send_ans(sock_send,MSG_530);
+            continue;
+        }
     }
 
     // close server socket
-
+    close(sock_send);
     return 0;
 }
