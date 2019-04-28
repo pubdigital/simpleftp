@@ -8,6 +8,7 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 #define BUFSIZE 512
 
@@ -20,11 +21,17 @@
  *       is copied
  * return: result of code checking
  **/
+
+void error(char *msg){
+    perror(msg);
+    exit(1);
+}
+
 bool recv_msg(int sd, int code, char *text) {
     char buffer[BUFSIZE], message[BUFSIZE];
     int recv_s, recv_code;
 
-    // receive the answer
+    // receive the answer - Recibe la respuesta.
 
 
     // error checking
@@ -84,7 +91,7 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+
     // relese memory
     free(input);
 
@@ -184,14 +191,35 @@ void operate(int sd) {
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
-    struct sockaddr_in addr;
+
+    struct sockaddr_in direccionServidor;
 
     // arguments checking
 
+    ///////////////
+
     // create socket and check for errors
-    
-    // set socket data    
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock == -1){
+        printf("Fallo la creacion del socket. /n");
+        return -1;
+    }else{
+        printf("Socket creado con exito. /n");
+    }
+
+    addr.sin_family = AF-INET;
+    addr.sin_addr.s_addr = inet.addr("127.0.0.1");
+    addr.sin_port = htons(5100);
+
+    int connectServer;
+    connectServer = connect(sock, (struct sockaddr*) &direccionServidor, sizeof(direccionServidor));
+
+    if (connectServer == -1) {
+        printf("Error al conectarse");
+        return -1;
+    }
+
+    // set socket data
 
     // connect and check for errors
 
