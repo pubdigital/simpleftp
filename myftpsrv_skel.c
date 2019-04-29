@@ -81,10 +81,13 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
+    if(send(sd,message, BUFSIZE, 0)<0){
+        printf("El mensaje no se a podido enviar\n");
+        return false;
+    }
 
 
-
-
+    return true;
 }
 
 /**
@@ -107,16 +110,12 @@ void retr(int sd, char *file_path) {
     sleep(1);
 
     // send the file
-
     // close the file
 
     // send a completed transfer message
 }
-
-int min(int x, int y) {
-    return (x < y) ? x : y;
-}
 /**
+
  * funcion: check valid credentials in ftpusers file
  * user: login user name
  * pass: user password
@@ -124,43 +123,42 @@ int min(int x, int y) {
  **/
 bool check_credentials(char *user, char *pass) {
     FILE *file;
-    char *path = "./ftpusers";
-    char *line = NULL, cred[100];
+    char *path = "./ftpusers", *line = NULL, cred[100];
     size_t len = 0;
     bool found = false;
 
     // make the credential string
-    strcpy(cred, "");
-    strcat(cred, user);
-    strcat(cred, ":");
-    strcat(cred, pass);
-    strcat(cred, "\n");
+    strcpy(cred,"");
+    strcat(cred,user);
+    strcat(cred,":");
+    strcat(cred,pass);
+    strcat(cred,"\n");
+    len=sizeof(cred);
 
     // check if ftpusers file it's present
-    file = fopen(path, "r");
-    if (file == NULL) return found;
+    if((file=fopen(path,"r"))==NULL){
 
+    	printf("Archivo de credenciales no encontrado\n");
+    	return false;
+    }
     // search for credential string
-    line = (char *)malloc(sizeof(char)*100);
-    while (feof(file) == 0) {
-        fgets(line, 100, file);
-
-        if (strcmp(cred, line) == 0) {
-            found = true;
-            break;
-        }
+    line=(char*)malloc(sizeof(char)*100);
+    while(!feof(file)){
+    	fgets(line, 100, file);
+    	if(strncmp(line,cred,len)==0){
+    		found=true;
+    		break;
+    	}
     }
 
     // close file and release any pointes if necessary
     fclose(file);
     free(line);
-
     // return search status
-    if (!found) {
-        printf(MSG_530);
-    } else {
-        printf(MSG_230, user);
-    }
+    if(found == false)
+    	printf(MSG_530);
+    else
+    	printf(MSG_230,user);
     return found;
 }
 
@@ -217,28 +215,71 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    // check_credentials("charly", "passcharly");
 
     // arguments checking
-
+    if(argc != 2){
+        printf("Error, please include the port\n");
+        return -1;
+    }
+    
     // reserve sockets and variables space
-
+    typedef struct sockaddr *sad;
+    int sockfd,sock_send;
+    struct sockaddr_in sin1, peer_addr;
+    socklen_t peer_addr_size = sizeof(struct sockaddr_in);
+    int PORT = atoi(argv[1]);
+    
     // create server socket and check errors
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    sin1.sin_family = AF_INET; // addres family
+    sin1.sin_port=htons(PORT); // function that changes to little or big endian
+    sin1.sin_addr.s_addr= INADDR_ANY; // found in inet.h
+    
+    if(sockfd < 0) {
+        printf("Socket could not be reated\n");
+        return -1;
+    }
+      printf("Socket created succesfully\n");
 
     // bind master socket and check errors
-
+    if ((bind (sockfd, (sad) &sin1, sizeof sin1)) < 0) {
+        printf("Socket could not be linked\n");
+        return -1;
+    }
+    printf("Socket linked\n");
+    
     // make it listen
-
+    if(listen(sockfd,5) < 0) {
+        printf("Socket not listening\n");
+        return -1;
+    }
+    printf("Socket listening\n");
+    
     // main loop
-//    while (true) {
+    while (true) {
         // accept connectiones sequentially and check errors
-
+        if((sock_send = accept(sockfd, (sad) &peer_addr,&peer_addr_size)) < 0){
+            printf("The socket did not accept the conection\n");
+            continue;
+        }
+        printf("The socket accepted the conection\n");
         // send hello
+        if(!send_ans(sock_send,MSG_220)){
+            printf("The hello message could not be sent\n");
+            continue;
+        }
+        printf("The hello was sent succesfully\n");
 
         // operate only if authenticate is true
-//    }
+        if(!authenticate(sock_send)) {
+            send_ans(sock_send,MSG_530);
+            continue;
+        }
+    }
 
     // close server socket
-
+    close(sock_send);
+    
+    // end main function
     return 0;
 }
