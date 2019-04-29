@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <err.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -25,7 +27,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s=recv(sd,buffer,BUFSIZE,0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -56,7 +58,10 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    if(send(sd,buffer, BUFSIZE, 0)<0){
+        printf("User could not be sent\n");
+        return;
+    }
 }
 
 /**
@@ -84,7 +89,7 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+    send_msg(sd,"USER",input);
     // relese memory
     free(input);
 
@@ -92,7 +97,7 @@ void authenticate(int sd) {
 
 
     // ask for password
-    printf("passwd: ");
+    printf("password: ");
     input = read_input();
 
     // send the command to the server
@@ -183,21 +188,45 @@ void operate(int sd) {
  * Run with
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
+//importante provar con la ip 127.0.0.1
 int main (int argc, char *argv[]) {
     int sd;
     struct sockaddr_in addr;
-
+    char linea[BUFSIZE];
     // arguments checking
+    if(argc != 3){
+        printf("Error, input the IP address and port, in that order\n");
+        return -1;
+    }
 
     // create socket and check for errors
+    sd = socket(PF_INET,SOCK_STREAM,0);
+    if (sd < 0) {
+        printf("Error, socket unreadable\n");
+        return -1;
+    }
     
-    // set socket data    
+    // set socket data
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(atoi(argv[2]));
+    inet_aton(argv[1],&addr.sin_addr);
 
     // connect and check for errors
-
+    if (connect(sd,(struct sockaddr *) &addr, sizeof(addr)) <0) {
+        printf("Error, could not connect\n");
+        return -1;
+    }
     // if receive hello proceed with authenticate and operate if not warning
+    if(!recv_msg(sd,220,NULL)) {
+      printf("Hello could not be read\n" );
+      return -1;
+    }
+    
+    authenticate(sd);
 
     // close socket
+    close(sd);
 
+    // end main function
     return 0;
 }
