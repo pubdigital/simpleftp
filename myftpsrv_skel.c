@@ -159,6 +159,8 @@ bool check_credentials(char *user, char *pass) {
     } else {
         printf(MSG_530);
     }
+    
+    return found;
 }
 
 /**
