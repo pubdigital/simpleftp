@@ -13,6 +13,20 @@
 
 #define BUFSIZE 512
 
+int get_digits(char *string) {
+    char *ptr = string;
+    while (*ptr) {
+        if (isdigit(*ptr)) {
+            long val = strtol(ptr, &ptr, 10);
+            DEBUG_PRINT(("get_digits VAL %ld\n", val));
+            return (int) val;
+        } else {
+            ptr++;
+        }
+    }
+    return 0;
+}
+
 /**
  * function: receive and analize the answer from the server
  * sd: socket descriptor
@@ -129,7 +143,7 @@ void authenticate(int sd) {
  * file_name: file name to get from the server
  **/
 void get(int sd, char *file_name) {
-    char desc[BUFSIZE], buffer[BUFSIZE];
+    char desc[BUFSIZE], buffer[BUFSIZE], revbuf[BUFSIZE];
     int f_size, recv_s, r_size = BUFSIZE;
     FILE *file;
 
@@ -139,21 +153,52 @@ void get(int sd, char *file_name) {
     if(!recv_msg(sd, 299, desc))
     {
         warn("299 message not received from server\n");
+        return;
     }
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
-    sscanf(buffer, "File %*s size %d bytes", &f_size);
+    f_size = get_digits(desc);
 
     // open the file to write
-    file = fopen(file_name, "w");
+    file = fopen(file_name, "w+");
 
     //receive the file
+    bzero(revbuf, BUFSIZE);
+    int f_block_sz = 0;
+    recv_s = 0;
+    while(f_block_sz = recv(sd, revbuf, BUFSIZE, 0))
+    {
+        DEBUG_PRINT(("recv_s: %d f_block_sz: %d\n", recv_s, f_block_sz));  
+        recv_s = f_block_sz + recv_s;
 
+        if(f_block_sz < 0)
+        {
+            printf("Receive file error.\n");
+            bzero(revbuf, BUFSIZE);
+            break;
+        }
+        int write_sz = fwrite(revbuf, sizeof(char), f_block_sz, file);
+        DEBUG_PRINT(("write_sz: %d\n", write_sz));
+        if(write_sz < f_block_sz)
+        {
+            printf("File write failed.\n");
+            bzero(revbuf, BUFSIZE);
+            break;
+        }
+        bzero(revbuf, BUFSIZE);
+        DEBUG_PRINT(("RECV_S: %d F_SIZE: %d\n",recv_s, f_size));
+        if(recv_s == f_size)
+        {
+            break;
+        }
+    }
+    DEBUG_PRINT(("Sucessfull file transfer!\n"));
 
     // close the file
     fclose(file);
 
     // receive the OK from the server
+    recv_msg(sd, 226, NULL);
 
 }
 

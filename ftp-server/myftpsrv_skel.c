@@ -133,13 +133,24 @@ void retr(int sd, char *file_path) {
     fseek(file, 0L, SEEK_END);
     fsize = ftell(file);
     rewind(file);
+    DEBUG_PRINT(("FILE PATH: %s FILE_SIZE: %ld\n", file_path, fsize));
     send_ans(sd, MSG_299, file_path, fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
 
     // send the file
-
+    while((bread = fread(buffer, sizeof(char), BUFSIZE, file))>0)
+    {
+        DEBUG_PRINT(("INSIDE WHILE buffer: %s\n", buffer));
+        if(send(sd, buffer, bread, 0) < 0)
+        {
+            printf("ERROR: Failed to send file %s.\n", file_path);
+            bzero(buffer, BUFSIZE);
+            break;
+        }
+        bzero(buffer, BUFSIZE);
+    }
     // close the file
     fclose(file);
     // send a completed transfer message
@@ -247,7 +258,7 @@ bool authenticate(int sd) {
  **/
 
 void operate(int sd) {
-    char op[5], param[PARSIZE];
+    char op[CMDSIZE + 1], param[PARSIZE];
 
     while (true) {
         op[0] = param[0] = '\0';
