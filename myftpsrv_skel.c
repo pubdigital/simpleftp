@@ -9,6 +9,9 @@
 
 #include <netinet/in.h>
 
+#include <errno.h>
+
+
 #define BUFSIZE 512
 #define CMDSIZE 4
 #define PARSIZE 100
@@ -81,10 +84,7 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
-
-
-
-
+    return (send(sd,buffer,sizeof(buffer),0)>0);
 }
 
 /**
@@ -192,9 +192,6 @@ void operate(int sd) {
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
 
-
-
-
             break;
         } else {
             // invalid command
@@ -208,22 +205,80 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-
     // arguments checking
+    if(argc!=2){
+        printf("Try %s <port>\n",argv[0]);
+        return -1;
+    }
+    for(int i = 0; i < strlen(argv[1]);i++){
+        if(argv[1][i] <'0'|| argv[1][i]>'9'){
+            printf("\nPort must be numeric\n");
+            exit(-1);
+        }
+    }
+
+#ifdef DEBUG
+    printf("Argumentos ok!\n");
+#endif
 
     // reserve sockets and variables space
-
+    int sd,sd2,sin_size;
+    struct sockaddr_in addr,cliente;
+    
     // create server socket and check errors
+    if((sd = socket(AF_INET,SOCK_STREAM,0))==-1){
+        close(sd);
+        perror("Socket error: ");
+        exit(errno);
+    }
+#ifdef DEBUG
+    printf("Socket creado\n");
+#endif
     
     // bind master socket and check errors
+    addr.sin_family=AF_INET;
+    addr.sin_port = htons(atoi(argv[1]));
+    addr.sin_addr.s_addr=INADDR_ANY;
 
+    if(bind(sd,(struct sockaddr *) &addr,sizeof(addr))<0){
+        close(sd);
+        perror("Bind error: ");
+        exit(errno);
+    }
+#ifdef DEBUG
+    printf("Bind ok!\n");
+#endif
+    
     // make it listen
+    if(listen(sd,BUFSIZE)==-1){
+        close(sd);
+        perror("Listen error: ");
+        exit(errno);
+    }
 
     // main loop
+#ifdef DEBUG
+    printf("Listen ok!\n");
+#endif
+  
+    sin_size=sizeof(struct sockaddr_in);
     while (true) {
         // accept connectiones sequentially and check errors
+#ifdef DEBUG
+        printf("Esperando conexion...\n");
+#endif
+        if((sd2 = accept(sd,(struct sockaddr *)&cliente,(socklen_t *)&sin_size))==-1){
+            close(sd2);
+            continue;
+//            perror("Accept error: ");
+//            exit(errno);
+        }
+#ifdef DEBUG
+        printf("ConexiÃ³n entrante desde: %s\n",inet_ntoa(cliente.sin_addr));
+#endif
 
         // send hello
+        send_ans(sd2,MSG_220);
 
         // operate only if authenticate is true
     }
