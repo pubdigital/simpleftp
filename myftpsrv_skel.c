@@ -9,6 +9,7 @@
 
 #include <netinet/in.h>
 
+#include <arpa/inet.h>
 #include <errno.h>
 
 
@@ -42,6 +43,9 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
+    recv_s=recv(sd,buffer,BUFSIZE,0);
+    if (recv_s < 0) warn("error receiving data");
+    if (recv_s == 0) errx(1, "connection closed by host");
 
 
 
@@ -164,14 +168,28 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    if(!recv_cmd(sd,"USER",user)){
+        printf("Incorrect command user %s",user);
+        return false;
+    }
 
     // ask for password
-
+    send_ans(sd,MSG_331,user);
     // wait to receive PASS action
+    if(!recv_cmd(sd,"PASS",pass)){
+        printf("Incorrect user or password\n");
+        return false;
+    }
 
     // if credentials don't check denied login
-
+    if(!check_credentials(user,pass)){
+        send_ans(sd,MSG_530,NULL);
+        printf("Incorrect user or password\n");
+        return false;
+    }
     // confirm login
+    send_ans(sd,MSG_230,user);
+    return true;
 }
 
 /**
@@ -265,25 +283,32 @@ int main (int argc, char *argv[]) {
     while (true) {
         // accept connectiones sequentially and check errors
 #ifdef DEBUG
-        printf("Esperando conexion...\n");
+        printf("Esperando conexión...\n");
 #endif
         if((sd2 = accept(sd,(struct sockaddr *)&cliente,(socklen_t *)&sin_size))==-1){
             close(sd2);
             continue;
-//            perror("Accept error: ");
-//            exit(errno);
         }
 #ifdef DEBUG
-        printf("ConexiÃ³n entrante desde: %s\n",inet_ntoa(cliente.sin_addr));
+        printf("Conexión entrante desde: %s\n",inet_ntoa(cliente.sin_addr));
 #endif
 
         // send hello
         send_ans(sd2,MSG_220);
 
         // operate only if authenticate is true
+        if(authenticate(sd2)){
+#ifdef DEBUG
+            printf("Autenticacion ok!\n");
+#endif
+        }
+
     }
 
     // close server socket
-
+    close(sd);
+#ifdef DEBUG
+    printf("Fin\n");
+#endif
     return 0;
 }

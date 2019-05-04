@@ -9,6 +9,8 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <errno.h>
+
 #define BUFSIZE 512
 
 /**
@@ -25,7 +27,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s=recv(sd,buffer,BUFSIZE,0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -56,6 +58,7 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
+    send(sd,buffer,sizeof(buffer),0);
 
 }
 
@@ -84,24 +87,34 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+    send_msg(sd,"USER",input);
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    if(!recv_msg(sd,331,desc)){
+        printf("Unexpected msg %s\n",desc);
+        return;
+    }
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
-
+    send_msg(sd,"PASS",input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
+    if(recv_msg(sd,530,desc)){
+        printf("Incorrect user or pasword\n");
+        exit(0);
+    }
+#ifdef DEBUG
+    printf("Login ok\n");
+#endif
 
 }
 
@@ -184,20 +197,67 @@ void operate(int sd) {
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
+   int sd;
     struct sockaddr_in addr;
+    char msg[50];
+    bzero((char*)&addr,16);
 
     // arguments checking
+    if(argc!=3){                                      //Reviso la cantidad de argumentos.
+        printf("Try %s <ip-server> <port>.\n",argv[0]);
+        return -1;
+    }
 
-    // create socket and check for errors
+    if(inet_aton(argv[1],&addr.sin_addr)==0){         //Reviso la direccion ip pasada como argumento y la cargo en addr.sin_addr.
+       printf("\nError en direccion ip\n");
+       return -1;
+    }
+
+    for(int i = 0; i < strlen(argv[2]);i++){         //Compruebo el puerto.
+        if(argv[2][i] <'0'|| argv[2][i]>'9'){
+            printf("\nPort must be numeric.\n");
+            return -1;
+        }
+    }
+#ifdef DEBUG
+    printf("Argumentos ok\n");
+#endif
+
+    addr.sin_port=htons(atoi(argv[2]));
+    addr.sin_family=AF_INET;
     
-    // set socket data    
+    // create socket and check for errors
+    if((sd = socket(AF_INET,SOCK_STREAM,0))==-1){
+        close(sd);
+        perror("Socket error: ");
+        exit(errno);
+    }
+#ifdef DEBUG
+    printf("Socket creado\n");
+#endif
+    // set socket data
+
 
     // connect and check for errors
+    if(connect(sd,(struct sockaddr *)&addr,sizeof(addr))<0){
+        close(sd);
+        perror("Connect error: ");
+        exit(errno);
+    }
 
     // if receive hello proceed with authenticate and operate if not warning
+    if(recv_msg(sd,220,msg)){
+        printf("Rcv: %s\n",msg);
+    }
+    else{
+        printf("Warning\n");
+    }
 
+    authenticate(sd);
     // close socket
-
+    close(sd);
+#ifdef DEBUG
+    printf("Fin\n");
+#endif
     return 0;
 }
