@@ -188,16 +188,46 @@ int main (int argc, char *argv[]) {
     struct sockaddr_in addr;
 
     // arguments checking
+    if(argc!=3){                                      //Reviso la cantidad de argumentos.
+        printf("\nCantidad de argumentos invalida.\n");
+        printf("Se debe ejecutar %s <ip-server> <puerto>.\n",argv[0]);
+        return -1;
+    }
 
-    // create socket and check for errors
+    if(inet_aton(argv[1],&addr.sin_addr)==0){         //Reviso la direccion ip argumento, y la cargo en addr.sin_addr.
+       printf("\nError en direccion ip\n");
+       return -1;
+    }
+
+    for(int i = 0; i < strlen(argv[2]);i++){         //Compruebo el puerto.
+        if(argv[2][i] <'0'|| argv[2][i]>'9'){
+            printf("\nError de puerto\n");
+            return -1;
+        }
+    }
+
+    addr.sin_port=htons(atoi(argv[2]));
+    addr.sin_family=AF_INET;
     
+    // create socket and check for errors
+    if((sd = socket(AF_INET,SOCK_STREAM,0))==-1){
+        printf("No se puede crear el socket 1\n");
+        close(sd);
+        return -2;
+    }
     // set socket data    
 
     // connect and check for errors
-
+    if(connect(sd,(struct sockaddr *)&addr,sizeof(addr))<0){
+        close(sd);
+        perror("Connect: ");
+        exit(errno);
+    }
     // if receive hello proceed with authenticate and operate if not warning
 
     // close socket
-
+    close(sd);
+    printf("\nSocket is Closed\n");
+    
     return 0;
 }
