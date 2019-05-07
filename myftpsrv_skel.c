@@ -213,15 +213,43 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
-
+    if(argc!=2){
+        printf("Try %s <port>\n",argv[0]);
+        return -1;
+    }
+    for(int i = 0; i < strlen(argv[1]);i++){
+        if(argv[1][i] <'0'|| argv[1][i]>'9'){
+            printf("\nPort must be numeric\n");
+            exit(-1);
+        }
+    }
+    
     // reserve sockets and variables space
-
+    int sd = socket(AF_INET,SOCK_STREAM,0);
+    struct sockaddr_in addr;
+    addr.sin_family=AF_INET;
+    addr.sin_port = htons(atoi(argv[1]));
+    addr.sin_addr.s_addr=INADDR_ANY;
+    
     // create server socket and check errors
+    if(sd==-1){
+        perror("Socket error: ");
+        close(sd);
+        exit(errno);
+    }
     
     // bind master socket and check errors
-
+    if(bind(sd,(struct sockaddr *) &addr,sizeof(addr))<0){
+        perror("Bind: ");
+        exit(errno);
+    }
+    
     // make it listen
-
+    if(listen(sd,BUFSIZE)==-1){
+        perror("Listen: ");
+        exit(errno);
+    }
+    
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
@@ -232,6 +260,8 @@ int main (int argc, char *argv[]) {
     }
 
     // close server socket
+    close(sd);
+    printf("\nSocket is Closed\n");
 
     return 0;
 }
