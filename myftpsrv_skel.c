@@ -8,11 +8,10 @@
 #include <err.h>
 
 #include <netinet/in.h>
-
-#include <arpa/inet.h>
+#include <arpa/inet.h>              
 
 #define BUFSIZE 512
-#define CMDSIZE 4
+#define CMDSIZE 5
 #define PARSIZE 100
 #define BACKLOG 10
 
@@ -42,8 +41,9 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
-
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
+    if (recv_s < 0) warn("error receiving data");
+    if (recv_s == 0) errx(1, "connection closed by host");
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -83,11 +83,12 @@ bool send_ans(int sd, char *message, ...){
 
     vsprintf(buffer, message, args);
     va_end(args);
+
     // send answer preformated and check errors
-
-
-
-
+    if ((send(sd, buffer, sizeof(buffer), 0)) == -1) {
+        perror("send");
+        return false;
+    } else return true;
 }
 
 /**
@@ -102,21 +103,37 @@ void retr(int sd, char *file_path) {
     char buffer[BUFSIZE];
 
     // check if file exists if not inform error to client
+    if ((file = fopen(file_path, "r")) == NULL) {
+        send_ans(sd, MSG_550, file_path);
+        return;
+    } 
 
     // send a success message with the file length
-
-    // important delay for avoid problems with buffer size
-    sleep(1);
+    fseek(file, 0L, SEEK_END); 
+    fsize = ftell(file); 
+    send_ans(sd, MSG_299, file_path, fsize);
+    rewind(file);
 
     // send the file
+    while(1) {
+        bread = fread(buffer, 1, BUFSIZE, file);
+        if (bread > 0) {
+            send(sd, buffer, bread, 0);
+            // important delay for avoid problems with buffer size
+            sleep(1);
+        }
+        if (bread < BUFSIZE) break;
+    }
 
     // close the file
+    fclose(file);
 
     // send a completed transfer message
+    send_ans(sd, MSG_226);
 }
 
 /**
- * funcion: check valid credentials in ftpusers file
+ * function: check valid credentials in ftpusers file
  * user: login user name
  * pass: user password
  * return: true if found or false if not
@@ -165,14 +182,23 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    recv_cmd(sd, "USER", user); 
 
     // ask for password
+    send_ans(sd, MSG_331, user);
 
     // wait to receive PASS action
+    recv_cmd(sd, "PASS", pass); 
 
     // if credentials don't check denied login
-
+    if(!check_credentials(user, pass)) {
+        send_ans(sd, MSG_530);
+        return false;
+    } else {      
     // confirm login
+        send_ans(sd, MSG_230, user);
+        return true;
+    }
 }
 
 /**
@@ -181,20 +207,18 @@ bool authenticate(int sd) {
  **/
 void operate(int sd) {
     char op[CMDSIZE], param[PARSIZE];
-
+    
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
-
+        if(!recv_cmd(sd, op, param)) exit(1);
+         
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
+            close(sd);
             break;
         } else {
             // invalid command
@@ -224,13 +248,13 @@ int main (int argc, char *argv[]) {
     my_addr.sin_port = htons(*argv[1]);   
     my_addr.sin_addr.s_addr = INADDR_ANY; 
     memset(&(my_addr.sin_zero), '\0', 8); 
-
+    
     // create server socket and check errors
     if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
         perror("socket");
         exit(1);
     }
-    
+
     // bind master socket and check errors
     if (bind(sockfd, (struct sockaddr *)&my_addr, sizeof(struct sockaddr)) == -1) {
         perror("bind");
@@ -258,11 +282,11 @@ int main (int argc, char *argv[]) {
 
         // operate only if authenticate is true
         if(!authenticate(new_fd)) close(new_fd);
-            else operate(new_fd);
+        else operate(new_fd);
     }
 
     // close server socket
     close(sockfd);
-    
+
     return 0;
 }
