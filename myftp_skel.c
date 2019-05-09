@@ -111,7 +111,12 @@ void authenticate(int sd) {
     free(input);
 
     // wait for answer and process it and check for errors
-    if(recv_msg(sd,230,NULL) < 0) fatal("falla mensaje 230");
+    if(recv_msg(sd,230,NULL)){
+        free(input);
+    }else{
+        recv_msg(sd,530,NULL);
+        close(sd);
+    }
 }
 
 /**
@@ -152,9 +157,9 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
-
+    send_msg(sd,"ALGO","QUIT");
     // receive the answer from the server
-
+    recv_msg(sd,221,NULL);
 }
 
 /**
@@ -168,11 +173,14 @@ void operate(int sd) {
         printf("Operation: ");
         input = read_input();
         if (input == NULL)
-            continue; // avoid empty input
+            continue; // avoid empty input        
         op = strtok(input, " ");
-        // free(input);
         if (strcmp(op, "get") == 0) {
             param = strtok(NULL, " ");
+            if(param == NULL){
+                printf("Falta parametro en operacion get\n");
+                continue;
+            } 
             get(sd, param);
         }
         else if (strcmp(op, "quit") == 0) {
@@ -218,6 +226,7 @@ int main (int argc, char *argv[]) {
     // if receive hello proceed with authenticate and operate if not warning
     if(recv_msg(sd,220,NULL)){
       authenticate(sd);
+      operate(sd);
     }else{
       fatal("falla en inicio");
     }

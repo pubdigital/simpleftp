@@ -204,13 +204,13 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+        recv_cmd(sd,"ALGO",op);
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
+            send_ans(sd,MSG_221);
 
 
 
@@ -218,6 +218,7 @@ void operate(int sd) {
         } else {
             // invalid command
             // furute use
+            fatal("Comando desconocido");
         }
     }
 }
@@ -262,7 +263,10 @@ int main (int argc, char *argv[]) {
         if(send_ans(sa,MSG_220)==false) break;
   
         // operate only if authenticate is true
-        if(authenticate(sa)) printf("Login exitoso\n");
+        if(authenticate(sa)){
+            printf("Login exitoso\n");
+            operate(sa);
+        } 
         close(sa);
     }
 
