@@ -185,19 +185,48 @@ void operate(int sd) {
  **/
 int main (int argc, char *argv[]) {
     int sd;
-    struct sockaddr_in addr;
+    struct sockaddr_in foreignAddr;
 
     // arguments checking
+    /* client must receive IP address + port where server is listening */
+    if (argc != 3) {
+    	printf("ERROR: enter IP address and port.\n");
+    	return -1;
+    }
 
     // create socket and check for errors
+    sd = socket(PF_INET, SOCK_STREAM, 0);	/* creates the socket and returns its file descriptor */
+    if (sd < 0) {
+    	printf("ERROR: failed to create socket.\n");
+    	return -1;
+    }
     
-    // set socket data    
+    // set socket data
+    foreignAddr.sin_family = AF_INET; /* Internet Protocol address family */
+    foreignAddr.sin_port = htons(atoi(argv[2]));
+    inet_aton(argv[1], &foreignAddr.sin_addr);
+    /**
+     * inet_aton converts the first argument of main to a network address
+     * and stores it in the structure that contains the address data of the socket
+     **/
 
     // connect and check for errors
+    /* connect() is blocking */
+    if(connect(sd, (struct sockaddr *) &foreignAddr, sizeof(foreignAddr)) < 0) {
+    	printf("ERROR: failed to connect.\n");
+    	return -1;
+    }
 
     // if receive hello proceed with authenticate and operate if not warning
+    if(!recv_msg(sd, 220, NULL)) {
+    	warn("ERROR: hello message was not received.\n");
+    } else {
+        authenticate(sd);
+        operate(sd);
+    }
 
     // close socket
+    close(sd);
 
     return 0;
 }
