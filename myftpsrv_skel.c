@@ -207,25 +207,66 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if(argc != 2){
+        printf("%s <SERVER_PORT>\n", argv[0]);
+        exit(1);
+	}
 
     // reserve sockets and variables space
-
+    typedef struct sockaddr *addr;
+    int sockfd, socksend;
+    struct sockaddr_in serv, peer_addr;
+    socklen_t peeraddrsize = sizeof(struct sockaddr_in);
+    
     // create server socket and check errors
+    sockfd = socket(PF_INET, SOCK_STREAM, 0);
+    serv.sin_family = AF_INET;
+    serv.sin_port = htons(atoi(argv[1]););
+    serv.sin_addr.s_addr = INADDR_ANY;
+
+    if(sockfd < 0){
+	    printf("Socket could not create\n");
+	    exit(1);
+    }
+    print("Socket created\n");
     
     // bind master socket and check errors
-
+    if((bind(sockfd, (struct sockaddr *)&serv, peeraddrsize)) < 0) {
+	    printf("Error in binding\n");
+	    exit(1);
+    }
+    
     // make it listen
-
+    if(!(listen(sockfd, 4))) {
+        printf("Error in listening\n");
+	    exit(1);
+    } else {
+	    printf("Socket listening\n");
+    }
+    
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
-
+        if((socksend = accept(sockfd, (struct sockaddr *)&peer_addr, peeraddrsize)) < 0) {
+	        printf("Error in accept function\n");
+	        exit(1);
+	    }
+        
         // send hello
-
+        if(!send_ans(socksend, MSG_220)) {
+	        printf("Error in hello message\n");
+        } else {
+	        printf("Hello message was sent\n");
+        }
+        
         // operate only if authenticate is true
+        if(!authenticate(socksend)) {
+	        send_ans(sock_send, MSG_530);
+	    }
     }
 
     // close server socket
-
+    close(socksend);
+    
     return 0;
 }
