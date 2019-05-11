@@ -188,16 +188,44 @@ int main (int argc, char *argv[]) {
     struct sockaddr_in addr;
 
     // arguments checking
+     if(argc =! 3){
+      printf("Arguments Error\n" );
+      exit(1);
+    }
 
     // create socket and check for errors
+     sd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sd == -1){
+      perror("Falla socket");
+	    exit (1);
+    }
     
     // set socket data    
+     addr.sin_family = AF_INET;
+    addr.sin_port = htons (atoi (argv[2]));
+    inet_aton(argv[1], &addr.sin_addr);
+
 
     // connect and check for errors
+    int connection_status;
+    connection_status =  connect(sd, (struct sockaddr *) &addr, sizeof(addr));
+      
+      if (connection_status == -1){
+        printf("Error al coenctar");
+        exit(1);
+    }
 
     // if receive hello proceed with authenticate and operate if not warning
+     if(!recv_msg(sd,220,NULL)){
+       warn("ERROR");
+    }else
+    {
+        authenticate(sd);
+        operate(sd);
 
+    }
     // close socket
+      close(sd);
 
     return 0;
 }
