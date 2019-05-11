@@ -49,8 +49,10 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
-
+    if (recv_s < 0) warn("error receiving data");
+    if (recv_s == 0) errx(1, "connection closed by host");
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -71,6 +73,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
         token = strtok(NULL, " ");
         if (token != NULL) strcpy(param, token);
     }
+
     return true;
 }
 
@@ -90,8 +93,14 @@ bool send_ans(int sd, char *message, ...){
 
     vsprintf(buffer, message, args);
     va_end(args);
-    // send answer preformated and check errors
 
+    // send answer preformated and check errors
+    if( (send(sd, buffer, BUFSIZE, 0)) < 0){
+        printf("Error al enviar respuesta con el mensaje: %s\n", buffer);
+        return false;
+    }
+    
+    return true;
 }
 
 /**
@@ -107,17 +116,36 @@ void retr(int sd, char *file_path) {
     char buffer[BUFSIZE];
 
     // check if file exists if not inform error to client
+    if((file = fopen(file_path, "rb")) == NULL){
+        send_ans(sd, MSG_550, file_path);
+        return;
+    }
 
     // send a success message with the file length
+    fseek(file, 0, SEEK_END);
+    fsize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    send_ans(sd, MSG_299, file_path, fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
 
     // send the file
+    while(1){    
+        bread = fread(buffer, 1, BUFSIZE, file);
+
+        if(bread <= 0){ 
+            break;
+        }
+        send(sd, buffer, bread, 0);
+    }
 
     // close the file
+    sleep(1);
+    fclose(file);
 
     // send a completed transfer message
+    send_ans(sd, MSG_226);
 }
 
 /**
@@ -142,25 +170,17 @@ bool check_credentials(char *user, char *pass) {
 
     // search for credential string
     line = (char*)malloc(sizeof(char) * PARSIZE);
-    while(!feof(file)){  
-                
+    while(!feof(file)){                
         fscanf(file, "%s", line);
-        printf("%s\n", line);
-
-        if(strcmp(cred, line) == 0){
-            printf("%s\n", line);
-            found = true;
-        }
-
+        if(strcmp(cred, line) == 0) found = true;
     }
+  
+    // close file and release any pointers if necessary
     free(line);
-    
-    // close file and release any pointes if necessary
     fclose(file);
 
     // return search status
     return found;
-
 }
 
 /**
@@ -172,14 +192,26 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    if(recv_cmd(sd, "USER", user) != true) return false;
 
     // ask for password
+    send_ans(sd, MSG_331);
 
     // wait to receive PASS action
+    recv_cmd(sd, "PASS", pass);
 
     // if credentials don't check denied login
+    if(!check_credentials(user, pass)){
+        send_ans(sd, MSG_530);
+        if (close(sd) > 0) DieWithError("Fallo al cerrar socket");
+        printf("Certificados de autenticacion incorrectos. Se cerro conexion con el cliente.\n");
+        return false;
+    }
 
     // confirm login
+    send_ans(sd, MSG_230, user);
+    printf("Un cliente con el nombre de usuario %s se autentico correctamente.\n", user);
+    return true;
 }
 
 /**
@@ -193,19 +225,21 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+        recv_cmd(sd, op, param);
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
+            if (close(sd) > 0) 
+                DieWithError("Fallo al cerrar socket");
+            else
+                printf("Se finalizo la conexion de un cliente por medio del comando QUIT.\n");
             break;
         } else {
             // invalid command
+            printf("Se recibio un comando invalido.\n");
             // future use
         }
     }
@@ -242,7 +276,7 @@ int main (int argc, char *argv[]) {
         printf("Se creo el enlace con el puerto %d con exito.\n", serverPort);
     
     // make it listen
-    if (listen(serverSocket, 3) < 0) 
+    if (listen(serverSocket, 1) < 0) 
         DieWithError("Fallo en el listen()\n");
     else
         printf("Escuchando...\n");
@@ -254,13 +288,13 @@ int main (int argc, char *argv[]) {
         if((clientSocket = accept(serverSocket,(struct sockaddr *) &clientAddr, &clientLen)) < 0)
             DieWithError("Fallo en el accept()\n");
         else
-            printf("Se acepto la conexion con un cliente exitosamente.\n"); 
+            printf("Se acepto la conexion con un nuevo cliente exitosamente.\n"); 
     
         // send hello       
         send(clientSocket, MSG_220, strlen(MSG_220), 0);
 
         // operate only if authenticate is true
-
+        if(authenticate(clientSocket)) operate(clientSocket);
     }
 
     // close server socket

@@ -35,7 +35,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -66,7 +66,7 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    if( (send(sd, buffer, BUFSIZE, 0)) < 0) DieWithError("Error al enviar mensaje.");
 }
 
 /**
@@ -90,28 +90,30 @@ void authenticate(int sd) {
     int code;
 
     // ask for user
-
+    printf("username: ");
+    input = read_input();
 
     // send the command to the server
-
+    send_msg(sd, "USER", input);
     
     // relese memory
-
+    free(input);
 
     // wait to receive password requirement and check for errors
-
+    recv_msg(sd, 331, desc);
 
     // ask for password
-
+    printf("passwd: ");
+    input = read_input();
 
     // send the command to the server
-
+    send_msg(sd, "PASS", input);
 
     // release memory
-
+    free(input);
 
     // wait for answer and process it and check for errors
-
+    if(!recv_msg(sd, 230, desc)) DieWithError("Autenticacion incorrecta. Terminando cliente.");
 }
 
 /**
@@ -125,25 +127,34 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
+    send_msg(sd, "RETR", file_name);
 
     // check for the response
+    if(recv_msg(sd, 550, NULL) == true) return;
 
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
     sscanf(buffer, "File %*s size %d bytes", &f_size);
 
     // open the file to write
-    file = fopen(file_name, "w");
+    file = fopen(file_name, "wb");
 
     //receive the file
+    while(1){
+        recv_s = recv(sd, buffer, r_size, 0);
+                
+        fwrite(buffer, 1, recv_s, file);
 
-
-
-    // close the file
-    fclose(file);
+        if (recv_s < r_size){
+            // close the file
+            fflush(file);
+            fclose(file);
+            break;
+        }
+    }
 
     // receive the OK from the server
-
+    recv_msg(sd, 226, NULL);
 }
 
 /**
@@ -152,9 +163,10 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
+    send_msg(sd, "QUIT", NULL);
 
     // receive the answer from the server
-
+    recv_msg(sd, 221, NULL);
 }
 
 /**
@@ -205,7 +217,7 @@ int main (int argc, char *argv[]) {
     if (argc!=3) DieWithError("Numero de argumentos invalido.\n");
 
     // create socket and check for errors
-    if ((clientSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)  DieWithError("Fallo en la creacion de socket");
+    if ( (clientSocket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0)  DieWithError("Fallo en la creacion de socket.");
 
     // set socket data 
     serverAddr.sin_family = AF_INET;
@@ -214,16 +226,21 @@ int main (int argc, char *argv[]) {
     serverAddr.sin_addr.s_addr = inet_addr(serverIP);
  
     // connect and check for errors
-    if (connect(clientSocket, (struct sockaddr *) &serverAddr,sizeof(serverAddr)) < 0) DieWithError("Fallo en el connect()");
+    if (connect(clientSocket, (struct sockaddr *) &serverAddr,sizeof(serverAddr)) < 0) DieWithError("Fallo en el connect().");
 
     // if receive hello proceed with authenticate and operate if not warning
-    for(;;){
-        recv(clientSocket, buffer, BUFSIZE, 0);
+    if( (recv(clientSocket, buffer, BUFSIZE, 0)) < 0) 
+        DieWithError("No se pudo establecer la comunicacion correctamente (No llega mensaje del servidor). Terminando ejecucion.");
+    else
         printf("%s", buffer);
-    }
+    authenticate(clientSocket);
+    operate(clientSocket);
 
     // close socket
-    if (close(clientSocket) > 0) DieWithError("Fallo al cerrar socket");
+    if (close(clientSocket) > 0) 
+        DieWithError("Fallo al cerrar socket.");
+    else
+        printf("Fin de ejecucion de cliente.\n");
 
     return 0;
 }
