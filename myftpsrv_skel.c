@@ -131,7 +131,7 @@ bool check_credentials(char *user, char *pass) {
     strcat(cred, "\n");
 
     // check if ftpusers file it's present
-      file = fopen (path, 'r');
+      file = fopen (path, "r");
     if (file==NULL){
         printf("No se puede abrir el archivo\n");
     }
@@ -141,7 +141,7 @@ bool check_credentials(char *user, char *pass) {
 
     while(!feof(file)){
         fgets(line,100, file);
-        if(strcmp(cred,line)=0){
+        if(strcmp(cred,line)==0){
             found = true;
 
         }
@@ -210,25 +210,64 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
-
+    if(argc =! 2){
+      printf("Arguments Error\n" );
+      exit(1);
+    }
     // reserve sockets and variables space
+    int socket_descriptor, newsockfd;
+    struct sockaddr_in servaddr, clieaddr;
+    int puerto = atoi (argv[1]);
+    socklen_t clienSize; 
 
     // create server socket and check errors
+     socket_descriptor = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_descriptor == -1){
+      perror("Falla socket");
+	    exit (1);
+    }
+
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(puerto);
+    servaddr.sin_addr.s_addr = INADDR_ANY;
     
     // bind master socket and check errors
+     if (bind(socket_descriptor, (struct sockaddr *) &servaddr, sizeof(servaddr)) < 0){
+        printf("binding failed");
+    }
 
     // make it listen
+    if (listen (socket_descriptor, 5) < 0){
+        printf("Listen error");
+        exit(1);
+    }
 
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+         clienSize = sizeof(clieaddr);
+
+        newsockfd = accept(socket_descriptor, (struct sockaddr *) &clieaddr, &clienSize);
+        if (newsockfd < 0){
+            printf("Error on Accept");
+        }
 
         // send hello
+        send_ans(newsockfd, MSG_220);
+
 
         // operate only if authenticate is true
+     if(authenticate(newsockfd) != true){
+            close(newsockfd);
+        }else{
+            operate(newsockfd);
+        }
+       
     }
 
     // close server socket
+      close(socket_descriptor);
+
 
     return 0;
 }
