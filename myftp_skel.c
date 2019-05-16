@@ -12,6 +12,13 @@
 #define BUFSIZE 512
 
 /**
+ * function: si hay error, se imprime mensaje y se corta el programa
+ **/
+void exitwithmsg(char * msg){
+    printf("%s\n", msg);
+    exit(-1);
+}
+/**
  * function: receive and analize the answer from the server
  * sd: socket descriptor
  * code: three leter numerical code to check if received
@@ -25,7 +32,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -56,6 +63,9 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
+    if((send(sd, buffer, BUFSIZE, 0)) < 0){
+        exitwithmsg("Error en el envio de mensaje");
+    }
 
 }
 
@@ -80,29 +90,32 @@ void authenticate(int sd) {
     int code;
 
     // ask for user
-    printf("username: ");
+    printf("Usuario: ");
     input = read_input();
 
     // send the command to the server
+    send_msg(sd, "USER", input);
     
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    recv_msg(sd, 331, desc);
 
     // ask for password
-    printf("passwd: ");
+    printf("Contraseña: ");
     input = read_input();
 
     // send the command to the server
-
+    send_msg(sd, "PASS", input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
-
+    if(!recv_msg(sd, 230, desc)){
+       exitwithmsg("Error en Autenticacion!");
+    }
 }
 
 /**
@@ -143,9 +156,10 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
+    send_msg(sd, "QUIT", NULL);
 
     // receive the answer from the server
-
+    recv_msg(sd, 221, NULL);
 }
 
 /**
@@ -184,20 +198,43 @@ void operate(int sd) {
  *         ./myftp <SERVER_IP> <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-    int sd;
+    if(argc<2){
+        printf("<host> <puerto>\n");
+        return 1;
+    }
+    int sd,resp_size,valor,puerto;
     struct sockaddr_in addr;
-
-    // arguments checking
-
-    // create socket and check for errors
+    char *ptr;
+    char pedido[BUFSIZE],respuesta[BUFSIZE];
+    char buffer[BUFSIZE], usuario[BUFSIZE], pass[BUFSIZE];
+    char user [5] = "USER";
+    char contr [5] = "PASS";
     
-    // set socket data    
+    puerto = (atoi(argv[2]));
+        
+    sd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sd == -1)
+    {
+        exitwithmsg("No se puede crear el socket\n");
+    }
 
-    // connect and check for errors
+    addr.sin_addr.s_addr = inet_addr(argv[1]);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(puerto);
 
-    // if receive hello proceed with authenticate and operate if not warning
-
-    // close socket
-
+    // Connect to server
+    if (connect(sd, (struct sockaddr *)&addr, sizeof(addr)) < 0)
+    {
+        close(sd);
+        exitwithmsg("Connection failed\n"); 
+    }else{
+        if((resp_size = recv(sd, buffer, BUFSIZE, 0))> 0) {
+            printf( "Me llego del servidor: %s \n", buffer);
+            authenticate(sd);
+            //operate(sd);
+        }else{
+            exitwithmsg("Servidor desconectado!");
+        }
+    }
     return 0;
 }
