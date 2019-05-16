@@ -126,15 +126,15 @@ void retr(int sd, char *file_path) {
  **/
 bool check_credentials(char *user, char *pass) {
     FILE *file;
+    char *path = "./ftpusers", *line = NULL, cred[200];
     size_t len = 0;
     bool found = false;
     int encontrado = 0;
 
-    strcpy(cred,user);
+    strcat(cred,user);
     strcat(cred,":");
-    strcat(cred,pass);
-    strcat(cred,"\n");    
-    //printf("cadena de busqueda//%s\n",cred);
+    strcat(cred,pass);   
+    printf("cadena de busqueda:'%s'\n",cred);
     file = fopen(path,"r");
     line = (char*)malloc(sizeof(char) * 100);
     //printf("abriendo archivo");
@@ -142,16 +142,19 @@ bool check_credentials(char *user, char *pass) {
        printf("No existe el archivo");
     }else{
           while(!feof(file)){
-            fgets(line,100,file);
+            fscanf(file,"%s", line);
+            printf("LINE:'%s'",line);
             if(strcmp(cred,line) == 0){
                 found = true;
                 encontrado=1;
+                break;
             }
           }
-    free(line);
-    fclose(file);
-     }
+        free(line);
+        fclose(file);
+        }
     printf("%d\n",encontrado);
+    return found;
     //return found;
     //ahora imprime 1 si lo encontro...
 }
@@ -228,8 +231,21 @@ int main (int argc, char *argv[]) {
         printf("<puerto>\n");
         return 1;
     }
+        int socket_desc,socket_client, *new_sock, c = sizeof(struct sockaddr_in);
+    char buffer[BUFSIZE], userpass[BUFSIZE],cadena[BUFSIZE], a [100], cod [5];
+    char *ptr;
+    FILE *buscar;
+    struct  sockaddr_in  server;
+    struct  sockaddr_in  client;
+    int resp_size;
+    int puerto = (atoi(argv[1]));
 
-
+    // Create socket
+    socket_desc = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_desc == -1){
+        printf("No se puede crear el servidor");
+        return 1;
+    }
 
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
@@ -239,8 +255,21 @@ int main (int argc, char *argv[]) {
         printf("Fallo el bind");
         return 1;
     }
+    listen(socket_desc , 3);
 
-
-
+    printf("Escuchando al cliente en el puerto %d...\n", puerto);
+    while (true) {
+        socklen_t longc = sizeof(client);
+        socket_client = accept(socket_desc, (struct sockaddr *)&client, &longc);
+        if (socket_client<0)
+        {
+            printf("Fallo el Accept");
+            return 1;
+        }else{
+            printf("Conectando con:%d\n",htons(client.sin_port));
+            send(socket_client, MSG_220, sizeof(MSG_220), 0);
+            authenticate(socket_client);
+        }
+    }
     return 0;
 }
