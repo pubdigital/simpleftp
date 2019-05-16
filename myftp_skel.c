@@ -129,26 +129,32 @@ void get(int sd, char *file_name) {
     int f_size, recv_s, r_size = BUFSIZE;
     FILE *file;
 
+    ssize_t bytes_read;
+    ssize_t escritos = 0;
+
     // send the RETR command to the server
-
+    send_msg(sd,"RETR",file_name);
     // check for the response
-
-    // parsing the file size from the answer received
-    // "File %s size %ld bytes"
-    sscanf(buffer, "File %*s size %d bytes", &f_size);
-
-    // open the file to write
-    file = fopen(file_name, "w");
-
-    //receive the file
-
-
-
-    // close the file
-    fclose(file);
-
-    // receive the OK from the server
-
+    if(recv_msg(sd,299,buffer)){
+        // parsing the file size from the answer received
+        // "File %s size %ld bytes"
+        sscanf(buffer, "File %*s size %d bytes", &f_size);
+        
+        // open the file to write
+        file = fopen(file_name, "w"); 
+              
+        while(escritos < f_size){
+            bytes_read = read(sd,desc,BUFSIZE);
+            escritos = escritos + bytes_read;
+            fwrite(desc, sizeof(char), bytes_read, file);
+        }
+        
+        // close the file
+        fclose(file);
+        
+        // receive the OK from the server
+        recv_msg(sd,226,NULL);
+    }
 }
 
 /**
@@ -157,7 +163,7 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
-    send_msg(sd,"ALGO","QUIT");
+    send_msg(sd,"QUIT",NULL);
     // receive the answer from the server
     recv_msg(sd,221,NULL);
 }

@@ -88,8 +88,6 @@ bool send_ans(int sd, char *message, ...){
     // send answer preformated and check errors
     if(send(sd, buffer, BUFSIZE, 0)) return true;
     else return false;
-
-
 }
 
 /**
@@ -104,19 +102,33 @@ void retr(int sd, char *file_path) {
     long fsize;
     char buffer[BUFSIZE];
 
-    // check if file exists if not inform error to client
+    size_t leidos;
 
-    // send a success message with the file length
+    // check if file exists if not inform error to client    
+    if((file = fopen(file_path,"r")) == NULL) {
+        send_ans(sd,MSG_550,file_path);
+    }else{
+        // send a success message with the file length
+        fseek(file, 0L, SEEK_END);
+        fsize = ftell(file);
+        send_ans(sd,MSG_299,file_path,fsize);
 
-    // important delay for avoid problems with buffer size
-    sleep(1);
-
-    // send the file
-
-    // close the file
-
-    // send a completed transfer message
+        rewind(file);
+        
+        // important delay for avoid problems with buffer size
+        sleep(1);
+        // send the file
+        while((leidos = fread(buffer,sizeof(char),BUFSIZE,file)) > 0){ 
+            write(sd,buffer,leidos);            
+        }
+        sleep(1);
+        // close the file
+        fclose(file);
+        // send a completed transfer message
+        send_ans(sd,MSG_226);
+    }
 }
+
 /**
  * funcion: check valid credentials in ftpusers file
  * user: login user name
@@ -145,11 +157,9 @@ bool check_credentials(char *user, char *pass) {
         while(line != NULL){
 
           if(strcmp(line,user)==0){
-            printf("Usuario encontrado\n");
             line = strtok(NULL,":");
             
             if(strcmp(line,pass)==0){
-              printf("Contraseña correcta encontrado\n");   
               found = true;
               break;
             }
@@ -197,23 +207,19 @@ bool authenticate(int sd) {
  *  function: execute all commands (RETR|QUIT)
  *  sd: socket descriptor
  **/
-
 void operate(int sd) {
-    char op[CMDSIZE], param[PARSIZE];
-
+    char op[CMDSIZE+1], param[PARSIZE];
+  
     while (true) {
         op[0] = param[0] = '\0';
+        recv_cmd(sd,op,param);
+        
         // check for commands send by the client if not inform and exit
-        recv_cmd(sd,"ALGO",op);
-
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
             send_ans(sd,MSG_221);
-
-
-
             break;
         } else {
             // invalid command
