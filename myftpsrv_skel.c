@@ -22,6 +22,12 @@
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
 
+void fatal(char *s){
+ 
+  printf("%s\n",s);
+  exit(1);
+}
+
 /**
  * function: receive the commands from the client
  * sd: socket descriptor
@@ -39,8 +45,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
-
-
+    if((recv_s = recv(sd, buffer, BUFSIZE, 0)) < 0) fatal("falla en recv");
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -81,10 +86,8 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
-
-
-
-
+    if(send(sd, buffer, BUFSIZE, 0)) return true;
+    else return false;
 }
 
 /**
@@ -99,19 +102,33 @@ void retr(int sd, char *file_path) {
     long fsize;
     char buffer[BUFSIZE];
 
-    // check if file exists if not inform error to client
+    size_t leidos;
 
-    // send a success message with the file length
+    // check if file exists if not inform error to client    
+    if((file = fopen(file_path,"r")) == NULL) {
+        send_ans(sd,MSG_550,file_path);
+    }else{
+        // send a success message with the file length
+        fseek(file, 0L, SEEK_END);
+        fsize = ftell(file);
+        send_ans(sd,MSG_299,file_path,fsize);
 
-    // important delay for avoid problems with buffer size
-    sleep(1);
-
-    // send the file
-
-    // close the file
-
-    // send a completed transfer message
+        rewind(file);
+        
+        // important delay for avoid problems with buffer size
+        sleep(1);
+        // send the file
+        while((leidos = fread(buffer,sizeof(char),BUFSIZE,file)) > 0){ 
+            write(sd,buffer,leidos);            
+        }
+        sleep(1);
+        // close the file
+        fclose(file);
+        // send a completed transfer message
+        send_ans(sd,MSG_226);
+    }
 }
+
 /**
  * funcion: check valid credentials in ftpusers file
  * user: login user name
@@ -125,14 +142,37 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
+    len = strlen(pass);
+    pass[len] = '\n';
 
     // check if ftpusers file it's present
-
+    file = fopen(path, "r");
+    if(file == NULL) fatal("error al abrir archivo ftpusers");
+    
     // search for credential string
+    while(fgets(cred,100,file) != NULL && found == false){
+        
+        line = strtok(cred,":");
+        
+        while(line != NULL){
+
+          if(strcmp(line,user)==0){
+            line = strtok(NULL,":");
+            
+            if(strcmp(line,pass)==0){
+              found = true;
+              break;
+            }
+          }
+          line = strtok(NULL,":");
+        } 
+    }
 
     // close file and release any pointes if necessary
+    fclose(file);
 
     // return search status
+    return found;
 }
 
 /**
@@ -144,41 +184,47 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    recv_cmd(sd,"USER",user);
 
     // ask for password
+    send_ans(sd,MSG_331);
 
     // wait to receive PASS action
+    recv_cmd(sd,"PASS",pass);
 
-    // if credentials don't check denied login
-
+    // if credentials don't check denied login	*****************************
+    if(!(check_credentials(user,pass))){
+      send_ans(sd,MSG_530);
+      return false;
+    } else {
     // confirm login
+      send_ans(sd,MSG_230,user);
+      return true;
+    } 
 }
 
 /**
  *  function: execute all commands (RETR|QUIT)
  *  sd: socket descriptor
  **/
-
 void operate(int sd) {
-    char op[CMDSIZE], param[PARSIZE];
-
+    char op[CMDSIZE+1], param[PARSIZE];
+  
     while (true) {
         op[0] = param[0] = '\0';
+        recv_cmd(sd,op,param);
+        
         // check for commands send by the client if not inform and exit
-
-
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd,MSG_221);
             break;
         } else {
             // invalid command
             // furute use
+            fatal("Comando desconocido");
         }
     }
 }
@@ -190,25 +236,48 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if(argc!=2)fatal("Especifique numero de puerto");
 
     // reserve sockets and variables space
+    int s,b,l,c,sa,sin_size;
+    struct sockaddr_in channel;
+    struct sockaddr_in client;
 
     // create server socket and check errors
+    if((s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) fatal("falla en socket");
     
+    memset(&channel, 0, sizeof(channel));
+    channel.sin_family = AF_INET;
+    channel.sin_addr.s_addr = htonl(INADDR_ANY);
+    channel.sin_port = htons(atoi(argv[1]));    
+
     // bind master socket and check errors
+    if((b = bind(s, (struct sockaddr *) &channel, sizeof(channel)) < 0)) fatal("falla en bind");
 
     // make it listen
+    if((l = listen(s, CMDSIZE)) < 0) fatal("falla en listen");
 
     // main loop
     while (true) {
+        sin_size = sizeof(struct sockaddr_in);
         // accept connectiones sequentially and check errors
-
+        sa = accept(s,(struct sockaddr *)&client,&sin_size);
+        if(sa < 0) fatal("falla en accept");
+        else printf("Cliente conectado\n");
+   
         // send hello
-
+        if(send_ans(sa,MSG_220)==false) break;
+  
         // operate only if authenticate is true
+        if(authenticate(sa)){
+            printf("Login exitoso\n");
+            operate(sa);
+        } 
+        close(sa);
     }
 
     // close server socket
+    close(s);
 
     return 0;
 }

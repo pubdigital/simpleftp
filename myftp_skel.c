@@ -9,7 +9,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include <netdb.h>
+
 #define BUFSIZE 512
+
+void fatal(char *s){
+ 
+  printf("%s\n",s);
+  exit(1);
+}
 
 /**
  * function: receive and analize the answer from the server
@@ -25,7 +33,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -56,7 +64,7 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    if(send(sd, buffer, BUFSIZE, 0) < 0) fatal("falla en send"); 
 }
 
 /**
@@ -84,25 +92,31 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
-    
+    send_msg(sd,"USER",input);
+   
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    if(recv_msg(sd,331,NULL) < 0) fatal("falla mensaje 331");
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
-
+    send_msg(sd,"PASS",input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
-
+    if(recv_msg(sd,230,NULL)){
+        free(input);
+    }else{
+        recv_msg(sd,530,NULL);
+        close(sd);
+    }
 }
 
 /**
@@ -115,26 +129,32 @@ void get(int sd, char *file_name) {
     int f_size, recv_s, r_size = BUFSIZE;
     FILE *file;
 
+    ssize_t bytes_read;
+    ssize_t escritos = 0;
+
     // send the RETR command to the server
-
+    send_msg(sd,"RETR",file_name);
     // check for the response
-
-    // parsing the file size from the answer received
-    // "File %s size %ld bytes"
-    sscanf(buffer, "File %*s size %d bytes", &f_size);
-
-    // open the file to write
-    file = fopen(file_name, "w");
-
-    //receive the file
-
-
-
-    // close the file
-    fclose(file);
-
-    // receive the OK from the server
-
+    if(recv_msg(sd,299,buffer)){
+        // parsing the file size from the answer received
+        // "File %s size %ld bytes"
+        sscanf(buffer, "File %*s size %d bytes", &f_size);
+        
+        // open the file to write
+        file = fopen(file_name, "w"); 
+              
+        while(escritos < f_size){
+            bytes_read = read(sd,desc,BUFSIZE);
+            escritos = escritos + bytes_read;
+            fwrite(desc, sizeof(char), bytes_read, file);
+        }
+        
+        // close the file
+        fclose(file);
+        
+        // receive the OK from the server
+        recv_msg(sd,226,NULL);
+    }
 }
 
 /**
@@ -143,9 +163,9 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
-
+    send_msg(sd,"QUIT",NULL);
     // receive the answer from the server
-
+    recv_msg(sd,221,NULL);
 }
 
 /**
@@ -159,11 +179,14 @@ void operate(int sd) {
         printf("Operation: ");
         input = read_input();
         if (input == NULL)
-            continue; // avoid empty input
+            continue; // avoid empty input        
         op = strtok(input, " ");
-        // free(input);
         if (strcmp(op, "get") == 0) {
             param = strtok(NULL, " ");
+            if(param == NULL){
+                printf("Falta parametro en operacion get\n");
+                continue;
+            } 
             get(sd, param);
         }
         else if (strcmp(op, "quit") == 0) {
@@ -185,19 +208,36 @@ void operate(int sd) {
  **/
 int main (int argc, char *argv[]) {
     int sd;
-    struct sockaddr_in addr;
+    
+    struct hostent *h;		    
+    struct sockaddr_in channel;	
 
     // arguments checking
+    if(argc != 3) fatal("Usar: cliente nombre-servidor nombre-archivo");
+    h = gethostbyname(argv[1]);	//Busca la direccion IP del host
+    if(!h) fatal("Falla en gethostbyname");
 
     // create socket and check for errors
-    
+    if((sd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) fatal("falla en socket");
+
     // set socket data    
+    memset(&channel, 0, sizeof(channel));
+    channel.sin_family = AF_INET;
+    memcpy(&channel.sin_addr.s_addr, h->h_addr, h->h_length);
+    channel.sin_port = htons(atoi(argv[2]));
 
     // connect and check for errors
+    if((connect(sd, (struct sockaddr *) &channel, sizeof(channel)) < 0)) fatal("falla en connect");
 
     // if receive hello proceed with authenticate and operate if not warning
-
+    if(recv_msg(sd,220,NULL)){
+      authenticate(sd);
+      operate(sd);
+    }else{
+      fatal("falla en inicio");
+    }
     // close socket
+    close(sd);
 
     return 0;
 }
