@@ -55,7 +55,7 @@ void send_msg(int sd, char *operation, char *param) {
     else
         sprintf(buffer, "%s\r\n", operation);
 
-    // send command and check for errors
+    // send command and check for errors//
 
 }
 
