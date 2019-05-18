@@ -14,7 +14,7 @@
 
 
 #define BUFSIZE 512
-#define CMDSIZE 4
+#define CMDSIZE 5
 #define PARSIZE 100
 
 #define MSG_220 "220 srvFtp version 1.0\r\n"
@@ -47,8 +47,6 @@ bool recv_cmd(int sd, char *operation, char *param) {
     if (recv_s < 0) warn("error receiving data");
     if (recv_s == 0) errx(1, "connection closed by host");
 
-
-
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
 
@@ -60,7 +58,11 @@ bool recv_cmd(int sd, char *operation, char *param) {
         warn("not valid ftp command");
         return false;
     } else {
-        if (operation[0] == '\0') strcpy(operation, token);
+        if (operation[0] == '\0') {strcpy(operation, token);
+#ifdef DEBUG
+            printf("Token: %s. Operation: %s\n",token,operation);
+#endif
+        }
         if (strcmp(operation, token)) {
             warn("abnormal client flow: did not send %s command", operation);
             return false;
@@ -68,6 +70,9 @@ bool recv_cmd(int sd, char *operation, char *param) {
         token = strtok(NULL, " ");
         if (token != NULL) strcpy(param, token);
     }
+#ifdef DEBUG
+            printf("Token: %s. Operation: %s. param: %s\n",token,operation,param);
+#endif
     return true;
 }
 
@@ -103,18 +108,44 @@ void retr(int sd, char *file_path) {
     long fsize;
     char buffer[BUFSIZE];
 
-    // check if file exists if not inform error to client
 
+    // check if file exists if not inform error to client
+    if((file=fopen(file_path,"r"))==NULL){
+        printf("Open file error: ");
+        send_ans(sd,MSG_550,file_path);
+        return;
+    }
     // send a success message with the file length
+    fseek(file, 0L, SEEK_END);
+    fsize = ftell(file);
+    fseek(file, 0L, SEEK_SET);
+
+    send_ans(sd,MSG_299,file_path,fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
 
     // send the file
-
+    bread=BUFSIZE;
+    while(bread==BUFSIZE){
+        if((bread=fread(buffer,1,sizeof(buffer),file))<0){
+            printf("Read file error\n");
+            return;
+        }
+        if(send(sd,buffer,bread,0)<0){
+            printf("Send file error\n");
+            return;
+        }
+    }
     // close the file
-
+    fclose(file);
     // send a completed transfer message
+    sleep(1);
+    send_ans(sd,MSG_226);
+#ifdef DEBUG
+    printf("Se completó el envío\n");
+#endif
+
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -183,8 +214,9 @@ bool authenticate(int sd) {
 
     // if credentials don't check denied login
     if(!check_credentials(user,pass)){
-        send_ans(sd,MSG_530,NULL);
+        send_ans(sd,MSG_530);
         printf("Incorrect user or password\n");
+        close(sd);
         return false;
     }
     // confirm login
@@ -203,19 +235,22 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
-
+        recv_cmd(sd,op,param);
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
+            send_ans(sd,MSG_221);
             break;
         } else {
             // invalid command
+            printf("Invalid command: %s\n",op);
+            break;
             // furute use
         }
     }
+    close(sd);
+    return;
 }
 
 /**
@@ -234,6 +269,7 @@ int main (int argc, char *argv[]) {
             exit(-1);
         }
     }
+
 
 #ifdef DEBUG
     printf("Argumentos ok!\n");
@@ -301,6 +337,11 @@ int main (int argc, char *argv[]) {
 #ifdef DEBUG
             printf("Autenticacion ok!\n");
 #endif
+            operate(sd2);
+#ifdef DEBUG
+            printf("Fin operacion\n");
+#endif
+            sleep(1);
         }
 
     }

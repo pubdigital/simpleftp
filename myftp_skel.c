@@ -80,7 +80,7 @@ char * read_input() {
  **/
 void authenticate(int sd) {
     char *input, desc[100];
-    int code;
+//    int code;
 
     // ask for user
     printf("username: ");
@@ -93,7 +93,7 @@ void authenticate(int sd) {
 
     // wait to receive password requirement and check for errors
     if(!recv_msg(sd,331,desc)){
-        printf("Unexpected msg %s\n",desc);
+        printf("%s\n",desc);
         return;
     }
 
@@ -109,13 +109,12 @@ void authenticate(int sd) {
 
     // wait for answer and process it and check for errors
     if(recv_msg(sd,530,desc)){
-        printf("Incorrect user or pasword\n");
+        printf("%s\n",desc);
         exit(0);
     }
 #ifdef DEBUG
     printf("Login ok\n");
 #endif
-
 }
 
 /**
@@ -125,12 +124,17 @@ void authenticate(int sd) {
  **/
 void get(int sd, char *file_name) {
     char desc[BUFSIZE], buffer[BUFSIZE];
-    int f_size, recv_s, r_size = BUFSIZE;
+    int f_size, recv_s, r_size;
     FILE *file;
 
     // send the RETR command to the server
+    send_msg(sd,"RETR",file_name);
 
     // check for the response
+    if(!recv_msg(sd,299,desc)){
+        printf("Unexpected command: %s\n",desc);
+        return;
+    }
 
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
@@ -140,14 +144,23 @@ void get(int sd, char *file_name) {
     file = fopen(file_name, "w");
 
     //receive the file
-
-
-
+    recv_s=BUFSIZE;
+    while( recv_s==BUFSIZE){
+        recv_s = recv(sd,buffer,BUFSIZE,0);
+        if (recv_s < 0) warn("error receiving data");
+        fwrite(buffer,1,recv_s,file);
+    }
     // close the file
     fclose(file);
+#ifdef DEBUG
+        printf("Se copió el archivo %s\n",file_name);
+#endif
 
     // receive the OK from the server
-
+    if(!recv_msg(sd,226,desc)){
+        printf("%s\n",desc);
+        return;
+    }
 }
 
 /**
@@ -156,9 +169,11 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
-
+    send_msg(sd,"QUIT",NULL);
     // receive the answer from the server
-
+    if(!recv_msg(sd,221,NULL)){
+        printf("Error en godbye");
+    }
 }
 
 /**
@@ -171,15 +186,25 @@ void operate(int sd) {
     while (true) {
         printf("Operation: ");
         input = read_input();
+
+#ifdef DEBUG
+        printf("Input: %s\n",input);
+#endif
         if (input == NULL)
             continue; // avoid empty input
         op = strtok(input, " ");
         // free(input);
         if (strcmp(op, "get") == 0) {
+#ifdef DEBUG
+        printf("Comando get\n");
+#endif
             param = strtok(NULL, " ");
             get(sd, param);
         }
         else if (strcmp(op, "quit") == 0) {
+#ifdef DEBUG
+        printf("Comando quit\n");
+#endif
             quit(sd);
             break;
         }
@@ -254,6 +279,7 @@ int main (int argc, char *argv[]) {
     }
 
     authenticate(sd);
+    operate(sd);
     // close socket
     close(sd);
 #ifdef DEBUG
