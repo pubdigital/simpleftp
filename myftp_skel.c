@@ -129,25 +129,34 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
+    send_msg(sd, "RETR", file_name);
 
     // check for the response
+    if(recv_msg(sd, 550, NULL) == true) return;
 
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
     sscanf(buffer, "File %*s size %d bytes", &f_size);
 
     // open the file to write
-    file = fopen(file_name, "w");
+    file = fopen(file_name, "wb");
 
     //receive the file
+    while(1){
+        recv_s = recv(sd, buffer, r_size, 0);
+                
+        fwrite(buffer, 1, recv_s, file);
 
-
-
-    // close the file
-    fclose(file);
+        if (recv_s < r_size){
+            // close the file
+            fflush(file);
+            fclose(file);
+            break;
+        }
+    }
 
     // receive the OK from the server
-
+    recv_msg(sd, 226, NULL);
 }
 
 /**
@@ -231,7 +240,7 @@ int main (int argc, char *argv[]) {
         if((resp_size = recv(sd, buffer, BUFSIZE, 0))> 0) {
             printf( "Me llego del servidor: %s \n", buffer);
             authenticate(sd);
-            //operate(sd);
+            operate(sd);
         }else{
             exitwithmsg("Servidor desconectado!");
         }

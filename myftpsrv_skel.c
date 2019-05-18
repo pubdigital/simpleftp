@@ -22,6 +22,13 @@
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
 
+/**
+ * function: si hay error, se imprime mensaje y se corta el programa
+ **/
+void exitwithmsg(char * msg){
+    printf("%s\n", msg);
+    exit(-1);
+}
 
 /**
  * function: receive the commands from the client
@@ -86,7 +93,7 @@ bool send_ans(int sd, char *message, ...){
 
     // send answer preformated and check errors
     if( (send(sd, buffer, BUFSIZE, 0)) < 0){
-        printf("Error en envio de la respuesta : %s\n", buffer);
+        exitwithmsg("Error en envio de la respuesta");
         return false;
     }
     
@@ -106,17 +113,37 @@ void retr(int sd, char *file_path) {
     char buffer[BUFSIZE];
 
     // check if file exists if not inform error to client
-
+    if((file = fopen(file_path, "rb")) == NULL){
+        send_ans(sd, MSG_550, file_path);
+        return;
+    }
+    printf("Existe el archivo\n");
     // send a success message with the file length
+    fseek(file, 0, SEEK_END);
+    fsize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    send_ans(sd, MSG_299, file_path, fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
-
+    printf("Inicio del envio del archivo\n");
     // send the file
+    while(1){    
+        bread = fread(buffer, 1, BUFSIZE, file);
+
+        if(bread <= 0){ 
+            break;
+        }
+        send(sd, buffer, bread, 0);
+    }
 
     // close the file
+    sleep(1);
+    fclose(file);
+    printf("Ya se cerro el archivo\n");
 
     // send a completed transfer message
+    send_ans(sd, MSG_226);
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -134,16 +161,16 @@ bool check_credentials(char *user, char *pass) {
     strcat(cred,user);
     strcat(cred,":");
     strcat(cred,pass);   
-    printf("cadena de busqueda:'%s'\n",cred);
+    //printf("cadena de busqueda:'%s'\n",cred);
     file = fopen(path,"r");
     line = (char*)malloc(sizeof(char) * 100);
     //printf("abriendo archivo");
     if(file == NULL){
-       printf("No existe el archivo");
+       exitwithmsg("No existe el archivo");
     }else{
           while(!feof(file)){
             fscanf(file,"%s", line);
-            printf("LINE:'%s'",line);
+            //printf("LINE:'%s'",line);
             if(strcmp(cred,line) == 0){
                 found = true;
                 encontrado=1;
@@ -153,7 +180,7 @@ bool check_credentials(char *user, char *pass) {
         free(line);
         fclose(file);
         }
-    printf("%d\n",encontrado);
+    //printf("%d\n",encontrado);
     return found;
     //return found;
     //ahora imprime 1 si lo encontro...
@@ -179,13 +206,13 @@ bool authenticate(int sd) {
 
     // if credentials don't check denied login
     if(!check_credentials(user, pass)){
-        printf("No encontrado");
+        //printf("No encontrado");
         send_ans(sd, MSG_530);
         if (close(sd) > 0);
         return false;
     }else{
          // confirm login
-        printf("Encontrado");
+        //printf("Encontrado");
         send_ans(sd, MSG_230, user);
     }
 
@@ -204,20 +231,21 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+        recv_cmd(sd, op, param);
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
+            if (close(sd) > 0) 
+                exitwithmsg("Fallo al cerrar socket");
+            else
+                printf("Se finalizo la conexion de un cliente por medio del comando QUIT.\n");
             break;
         } else {
             // invalid command
-            // furute use
+            // future use
         }
     }
 }
@@ -268,7 +296,9 @@ int main (int argc, char *argv[]) {
         }else{
             printf("Conectando con:%d\n",htons(client.sin_port));
             send(socket_client, MSG_220, sizeof(MSG_220), 0);
-            authenticate(socket_client);
+            if(authenticate(socket_client)){
+                operate(socket_client);
+            }
         }
     }
     return 0;
