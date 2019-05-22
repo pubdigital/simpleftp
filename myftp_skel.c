@@ -89,9 +89,13 @@ void authenticate(int sd) {
     char *input, desc[100];
     int code;
 
+    sleep(0.5);
+
     // ask for user
     printf("username: ");
     input = read_input();
+
+    sleep(0.5);
 
     // send the command to the server
     send_msg(sd, "USER", input);
@@ -228,11 +232,12 @@ int main (int argc, char *argv[]) {
     // connect and check for errors
     if (connect(clientSocket, (struct sockaddr *) &serverAddr,sizeof(serverAddr)) < 0) DieWithError("Fallo en el connect().");
 
+    sleep(0.5);
+
     // if receive hello proceed with authenticate and operate if not warning
-    if( (recv(clientSocket, buffer, BUFSIZE, 0)) < 0) 
+    if( (recv_msg(clientSocket, 220, buffer)) < 0) 
         DieWithError("No se pudo establecer la comunicacion correctamente (No llega mensaje del servidor). Terminando ejecucion.");
-    else
-        printf("%s", buffer);
+
     authenticate(clientSocket);
     operate(clientSocket);
 

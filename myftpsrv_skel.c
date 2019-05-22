@@ -191,11 +191,15 @@ bool check_credentials(char *user, char *pass) {
 bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
+    sleep(0.5);
+
     // wait to receive USER action
     if(recv_cmd(sd, "USER", user) != true) return false;
 
+    sleep(0.5);
+
     // ask for password
-    send_ans(sd, MSG_331);
+    send_ans(sd, MSG_331, user);
 
     // wait to receive PASS action
     recv_cmd(sd, "PASS", pass);
@@ -220,7 +224,7 @@ bool authenticate(int sd) {
  **/
 
 void operate(int sd) {
-    char op[CMDSIZE], param[PARSIZE];
+    char op[5], param[PARSIZE];
 
     while (true) {
         op[0] = param[0] = '\0';
