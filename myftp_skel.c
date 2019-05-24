@@ -30,7 +30,7 @@ bool recv_msg(int sd, int code, char *text) {
     // error checking
     if (recv_s < 0) warn("An error occurred while receiving data.\n");
     if (recv_s == 0) errx(1, "Connection closed.\n");
-
+	
     // parsing the code and message receive from the answer
     sscanf(buffer, "%d %[^\r\n]\r\n", &recv_code, message);
     printf("%d %s\n", recv_code, message);
