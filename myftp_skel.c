@@ -25,7 +25,7 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
@@ -56,7 +56,7 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    send(sd, buffer, BUFSIZE, 0);
 }
 
 /**
@@ -84,25 +84,29 @@ void authenticate(int sd) {
     input = read_input();
 
     // send the command to the server
+    send_msg(sd, "USER", input);
     
     // relese memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    recv_msg(sd, 331, desc);
 
     // ask for password
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
-
+    send_msg(sd, "PASS", input);
 
     // release memory
     free(input);
 
     // wait for answer and process it and check for errors
-
+    if(recv_msg(sd, 230, desc) == false){
+        printf("Error en la autenticacion.\n");
+        exit(-1);
+    }
 }
 
 /**
@@ -116,8 +120,10 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
+    send_msg(sd, "RETR", file_name);
 
     // check for the response
+    if(recv_msg(sd, 550, NULL) == true) return;
 
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
@@ -127,13 +133,22 @@ void get(int sd, char *file_name) {
     file = fopen(file_name, "w");
 
     //receive the file
-
-
+    while(1){
+        recv_s = recv(sd, buffer, r_size, 0);    
+        fwrite(buffer, 1, recv_s, file);
+        if (recv_s < r_size){
+            // close the file
+            fflush(file);
+            fclose(file);
+            break;
+        }
+    }
 
     // close the file
     fclose(file);
 
     // receive the OK from the server
+    recv_msg(sd, 226, NULL);
 
 }
 
@@ -143,9 +158,10 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
+    send_msg(sd, "QUIT", NULL);
 
     // receive the answer from the server
-
+    recv_msg(sd, 221, NULL);
 }
 
 /**
@@ -215,10 +231,17 @@ int main (int argc, char *argv[]) {
     printf("Conectado a un server.\n");
 
     // if receive hello proceed with authenticate and operate if not warning
-    recv(sd, buffer, BUFSIZE, 0);
-    printf("%s", buffer);
+    if(recv_msg(sd, 220, buffer) < 0){
+        printf("Hubo un error en la conexion.\n");
+        return -1;
+    }
+
+    authenticate(sd);
+
+    operate(sd);
 
     // close socket
+    close(sd);
 
     return 0;
 }

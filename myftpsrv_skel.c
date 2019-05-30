@@ -10,7 +10,7 @@
 #include <netinet/in.h>
 
 #define BUFSIZE 512
-#define CMDSIZE 4
+#define CMDSIZE 5
 #define PARSIZE 100
 
 #define MSG_220 "220 srvFtp version 1.0\n"
@@ -39,8 +39,15 @@ bool recv_cmd(int sd, char *operation, char *param) {
     int recv_s;
 
     // receive the command in the buffer and check for errors
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
-
+    if (recv_s < 0){
+        printf("Error recibiendo datos.\n");
+    }
+    if (recv_s == 0){
+        printf("Conexion cerrada por host.\n");
+        return -1;
+    }
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -81,10 +88,11 @@ bool send_ans(int sd, char *message, ...){
     vsprintf(buffer, message, args);
     va_end(args);
     // send answer preformated and check errors
-
-
-
-
+    if(send(sd, buffer, BUFSIZE, 0) < 0){
+        printf("Error al enviar mensaje.\n");
+        return false;
+    }
+    return true;
 }
 
 /**
@@ -100,17 +108,35 @@ void retr(int sd, char *file_path) {
     char buffer[BUFSIZE];
 
     // check if file exists if not inform error to client
+    if((file = fopen(file_path, "rb")) == NULL){
+        send_ans(sd, MSG_550, file_path);
+        return;
+    }
 
     // send a success message with the file length
+    fseek(file, 0, SEEK_END);
+    fsize = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    send_ans(sd, MSG_299, file_path, fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
 
     // send the file
+    while(1){    
+        bread = fread(buffer, 1, BUFSIZE, file);
+        if(bread <= 0){ 
+            break;
+        }
+        send(sd, buffer, bread, 0);
+    }
 
     // close the file
+    sleep(2);
+    fclose(file);
 
     // send a completed transfer message
+    send_ans(sd, MSG_226);
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -126,7 +152,7 @@ bool check_credentials(char *user, char *pass) {
 
     // make the credential string
     strcpy(cred, user);
-    strcat(cred, " : ");
+    strcat(cred, ":");
     strcat(cred, pass);
 
     // check if ftpusers file it's present
@@ -163,14 +189,30 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    if(recv_cmd(sd, "USER", user) != true){
+        return false;
+    }
 
     // ask for password
+    send_ans(sd, MSG_331, user);
 
     // wait to receive PASS action
+    recv_cmd(sd, "PASS", pass);
 
     // if credentials don't check denied login
+    if(check_credentials(user, pass) == false){
+        send_ans(sd, MSG_530);
+        if (close(sd) > 0){
+            printf("No se cerro el socket\n");
+        }
+        printf("Error al autenticarse.\n");
+        return false;
+    }
 
     // confirm login
+    send_ans(sd, MSG_230, user);
+    printf("El cliente %s se conecto correctamente.\n", user);
+    return true;
 }
 
 /**
@@ -184,16 +226,18 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+        recv_cmd(sd, op, param);
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
+            if(close(sd) > 0){
+                printf("Error al cerrar el socket.\n");
+            }else{
+                printf("Finalizo la sesion con QUIT\n");
+            }
             break;
         } else {
             // invalid command
@@ -256,6 +300,9 @@ int main (int argc, char *argv[]) {
         send(socketCliente, MSG_220, strlen(MSG_220), 0);
 
         // operate only if authenticate is true
+        if(authenticate(socketCliente) == true){
+            operate(socketCliente);
+        }
     }
 
     // close server socket
