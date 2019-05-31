@@ -15,7 +15,7 @@
  * function: receive and analize the answer from the server
  * sd: socket descriptor
  * code: three leter numerical code to check if received
- * text: normally NULL but if a pointer if received as parameter
+ * text: normally NULL but if a pointer is received as parameter
  *       then a copy of the optional message from the response
  *       is copied
  * return: result of code checking
@@ -25,11 +25,12 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
 
     // receive the answer
-
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
 
     // error checking
     if (recv_s < 0) warn("error receiving data");
     if (recv_s == 0) errx(1, "connection closed by host");
+
 
     // parsing the code and message receive from the answer
     sscanf(buffer, "%d %[^\r\n]\r\n", &recv_code, message);
@@ -56,7 +57,9 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
-
+    if(send(sd, buffer, sizeof(buffer), 0) < 0) {
+        printf("ERROR: failed to send command.\n");
+    }
 }
 
 /**
@@ -80,29 +83,36 @@ void authenticate(int sd) {
     int code;
 
     // ask for user
-    printf("username: ");
+    printf("Username: ");
     input = read_input();
 
     // send the command to the server
+    send_msg(sd, "USER", input);
     
-    // relese memory
+    // release memory
     free(input);
 
     // wait to receive password requirement and check for errors
-
+    code = 331;
+    if(recv_msg(sd, code, desc) != true) {
+        printf("Message code error.\n");
+    }
 
     // ask for password
-    printf("passwd: ");
+    printf("Password: ");
     input = read_input();
 
     // send the command to the server
-
+    send_msg(sd, "PASS", input);
 
     // release memory
     free(input);
 
-    // wait for answer and process it and check for errors
-
+    // wait for answer, process it and check for errors
+    code = 230;
+    if(!recv_msg(sd, code, desc)) {
+         exit(1);
+    }
 }
 
 /**
@@ -116,8 +126,12 @@ void get(int sd, char *file_name) {
     FILE *file;
 
     // send the RETR command to the server
+    send_msg(sd, "RETR", file_name);
 
     // check for the response
+    if(recv_msg(sd, 550, NULL)) {
+        return;
+    }
 
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
@@ -127,14 +141,23 @@ void get(int sd, char *file_name) {
     file = fopen(file_name, "w");
 
     //receive the file
+    while(1) {
+        recv_s = read(sd, desc, r_size);
 
+        if(recv_s > 0) {
+            fwrite(desc, 1, recv_s, file);
+        }
 
-
+        if(recv_s < r_size) {
+            break;
+        }
+    }
+    
     // close the file
     fclose(file);
 
     // receive the OK from the server
-
+    recv_msg(sd, 226, NULL);
 }
 
 /**
@@ -143,9 +166,10 @@ void get(int sd, char *file_name) {
  **/
 void quit(int sd) {
     // send command QUIT to the client
+    send_msg(sd, "QUIT", NULL);
 
     // receive the answer from the server
-
+    recv_msg(sd, 221, NULL);
 }
 
 /**
