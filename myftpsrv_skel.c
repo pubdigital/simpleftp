@@ -10,8 +10,9 @@
 #include <netinet/in.h>
 
 #define BUFSIZE 512
-#define CMDSIZE 4
+#define CMDSIZE 5
 #define PARSIZE 100
+#define BACKLOG 5       // maximum number of clients in queue
 
 #define MSG_220 "220 srvFtp version 1.0\r\n"
 #define MSG_331 "331 Password required for %s\r\n"
@@ -26,10 +27,10 @@
  * function: receive the commands from the client
  * sd: socket descriptor
  * operation: \0 if you want to know the operation received
- *            OP if you want to check an especific operation
+ *            OP if you want to check a specific operation
  *            ex: recv_cmd(sd, "USER", param)
- * param: parameters for the operation involve
- * return: only usefull if you want to check an operation
+ * param: parameters involved in the operation
+ * return: only useful if you want to check an operation
  *         ex: for login you need the seq USER PASS
  *             you can check if you receive first USER
  *             and then check if you receive PASS
@@ -38,8 +39,11 @@ bool recv_cmd(int sd, char *operation, char *param) {
     char buffer[BUFSIZE], *token;
     int recv_s;
 
-    // receive the command in the buffer and check for errors
 
+    // receive the command in the buffer and check for errors
+    recv_s = recv(sd, buffer, BUFSIZE, 0); /* receives from sd and stores in buffer */
+    if (recv_s < 0) warn("error receiving data");
+    if (recv_s == 0) errx(1, "connection closed by host");
 
 
     // expunge the terminator characters from the buffer
@@ -47,7 +51,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
 
     // complex parsing of the buffer
     // extract command receive in operation if not set \0
-    // extract parameters of the operation in param if it needed
+    // extract parameters of the operation in param if needed
     token = strtok(buffer, " ");
     if (token == NULL || strlen(token) < 4) {
         warn("not valid ftp command");
@@ -69,8 +73,8 @@ bool recv_cmd(int sd, char *operation, char *param) {
  * sd: file descriptor
  * message: formatting string in printf format
  * ...: variable arguments for economics of formats
- * return: true if not problem arise or else
- * notes: the MSG_x have preformated for these use
+ * return: true if no problem arise or else
+ * notes: the MSG_x have preformated for this use
  **/
 bool send_ans(int sd, char *message, ...){
     char buffer[BUFSIZE];
@@ -80,11 +84,14 @@ bool send_ans(int sd, char *message, ...){
 
     vsprintf(buffer, message, args);
     va_end(args);
+
     // send answer preformated and check errors
-
-
-
-
+    if(send(sd, buffer, sizeof(buffer), 0) < 0) {
+        printf("ERROR: failed to send message.\n");
+        return false;
+    } else {
+        return true;
+    }
 }
 
 /**
@@ -92,28 +99,52 @@ bool send_ans(int sd, char *message, ...){
  * sd: socket descriptor
  * file_path: name of the RETR file
  **/
-
 void retr(int sd, char *file_path) {
-    FILE *file;    
-    int bread;
+    FILE *file;
+    int bRead;
     long fsize;
     char buffer[BUFSIZE];
 
+
     // check if file exists if not inform error to client
+    file = fopen(file_path, "r");
+    if (file == NULL) {
+        printf(MSG_550, file_path);
+        send_ans(sd, MSG_550, file_path);
+        return;
+    }
+
+
+    // getting file size
+    fseek(file, 0L, SEEK_END);
+    fsize = ftell(file);
+    rewind(file);
 
     // send a success message with the file length
-
-    // important delay for avoid problems with buffer size
-    sleep(1);
+    send_ans(sd, MSG_299, file_path, fsize);
+    printf(MSG_299, file_path, fsize);
 
     // send the file
+    while(!feof(file)) {
+        bRead = fread(buffer, 1, BUFSIZE, file);
 
+        if(bRead > 0) {
+            send(sd, buffer, bRead, 0);
+            // important delay to avoid problems with buffer size
+            sleep(1);
+        }
+    }
+    
     // close the file
+    fclose(file);
 
     // send a completed transfer message
+    send_ans(sd, MSG_226);
+    printf(MSG_226);
 }
+
 /**
- * funcion: check valid credentials in ftpusers file
+ * function: check valid credentials in ftpusers file
  * user: login user name
  * pass: user password
  * return: true if found or false if not
@@ -130,10 +161,9 @@ bool check_credentials(char *user, char *pass) {
     strcat(cred, pass);
     strcat(cred, "\n");
 
-    // check if ftpusers file it's present
+    // check if ftpusers file is present
     file = fopen(path, "r");
-    if (file == NULL)
-    {
+    if (file == NULL) {
       printf(MSG_550, path);
       return -1;
     }
@@ -159,7 +189,7 @@ bool check_credentials(char *user, char *pass) {
     } else {
         printf(MSG_530);
     }
-    
+
     return found;
 }
 
@@ -172,37 +202,47 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+    recv_cmd(sd, "USER", user);
 
     // ask for password
+    send_ans(sd, MSG_331, user);
 
     // wait to receive PASS action
+    recv_cmd(sd, "PASS", pass);
 
-    // if credentials don't check denied login
+    // if credentials don't check, deny login
+    if(check_credentials(user, pass) != true) {
+        send_ans(sd, MSG_530);
+        printf("Connection closed by server.\n");
+        return false;
+    }
 
     // confirm login
+    send_ans(sd, MSG_230, user);
+    return true;
 }
 
 /**
  *  function: execute all commands (RETR|QUIT)
  *  sd: socket descriptor
  **/
-
 void operate(int sd) {
     char op[CMDSIZE], param[PARSIZE];
 
+
     while (true) {
         op[0] = param[0] = '\0';
-        // check for commands send by the client if not inform and exit
+        // check for commands sent by the client if not inform and exit
+        if(!recv_cmd(sd, op, param)) {
+            exit(1);
+        }
 
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-
-
-
-
+            send_ans(sd, MSG_221);
             break;
         } else {
             // invalid command
