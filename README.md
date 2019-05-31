@@ -40,3 +40,6 @@ Operation: get letra.txt
 Operation: quit
 221 Goodbye
 ```
+**Para comprobar que la transferencia del fichero ha salido correctamente, es necesario
+utilizar desde el shell el comando diff para que compare el fichero original y el fichero
+transferido desde el servidor al cliente
