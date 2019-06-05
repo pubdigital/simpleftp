@@ -40,7 +40,13 @@ bool recv_cmd(int sd, char *operation, char *param) {
 
     // receive the command in the buffer and check for errors
 
-
+recv_s = recv(sd, buffer, BUFSIZE, 0);
+    if (recv_s < 0) {
+        warn("error receiving data");
+    }
+	if (recv_s == 0){
+        errx(1, "connection closed by host");
+    }
 
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
@@ -82,7 +88,13 @@ bool send_ans(int sd, char *message, ...){
     va_end(args);
     // send answer preformated and check errors
 
-
+if(send(sd, buffer, sizeof(buffer), 0) == -1) {
+          printf("No se pudo enviar el mensaje");
+          return false;
+          } 
+          else {
+	        return true;
+	    }
 
 
 }
@@ -98,19 +110,45 @@ void retr(int sd, char *file_path) {
     int bread;
     long fsize;
     char buffer[BUFSIZE];
+	
+    file = fopen(file_path, "r");
+	
 
     // check if file exists if not inform error to client
+	if (file == NULL) {
+	        send_ans(sd, MSG_550, file_path);
+	        return;
+	    } 
+
 
     // send a success message with the file length
 
     // important delay for avoid problems with buffer size
     sleep(1);
+	
+	fseek(file, 0L, SEEK_END);
+	    fsize = ftell(file);
+        send_ans(sd, MSG_299, file_path, fsize);
+	    rewind(file);
 
     // send the file
+	while (1){
+         bread = fread(buffer, 1, BUFSIZE, file);
+
+         if (bread > 0) {
+	            send (sd, buffer, bread, 0);
+	            sleep(1);
+         } if (bread < BUFSIZE){
+             break;
+	    }
+
+    }
 
     // close the file
+	fclose(file);
 
     // send a completed transfer message
+	send_ans(sd, MSG_226);
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -164,14 +202,23 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+	recv_cmd(sd, "USER", user);
 
     // ask for password
+	send_ans(sd, MSG_331, user);
 
     // wait to receive PASS action
+	 recv_cmd(sd, "PASS", pass);
 
     // if credentials don't check denied login
+	if(!check_credentials(user, pass)) {
+	      send_ans(sd, MSG_530);
+	      return false;
+      }
 
     // confirm login
+	send_ans(sd, MSG_230, user);
+	return true;
 }
 
 /**
@@ -185,14 +232,16 @@ void operate(int sd) {
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-
+	if(!recv_cmd(sd, op, param)) {
+	            exit(1);
+	        }
 
         if (strcmp(op, "RETR") == 0) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
 
-
+		send_ans(sd, MSG_221);
 
 
             break;
