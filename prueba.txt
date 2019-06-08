@@ -1,0 +1,32 @@
+Algunos conceptos del derecho civil
+
+Hecho juridico
+El articulo 257 describe al hecho juridico como "el acontecimiento que, conforme al ordenamiento juridico, produce el nacimiento, modificacion o extincion de relaciones o situaciones juridicas.
+En principio, todos los hechos que se dan en la realidad social pueden tener consecuencias juridicas. Un mismo hecho, segun las circunstancias, independientemente de las conductas que intervienen en el, pueden traer consecuencias juridicas.
+Los hechos juridicos pueden provenir de la naturaleza o pueden consistir en hechos humanos. 
+Tambien, los estados psiquicos pueden constituirse en hechos juridicos, tanto se exterioricen o puedan ser exteriorizados o inferidos a partir de otros hechos.
+Los hechos futuros, o la probabilidad de que existan, tambien pueden ser considerados hechos juridicos.
+
+Actos voluntarios: El acto voluntario es el ejecutado con discernimiento, intencion y libertad, que se manifiesta por un hecho exterior. Como cuarto requisito, se necesita que se exteriorice. Los tres primeros constituyen los elementos internos de la voluntad, y el cuarto, el elemento externo. Si falta alguno de ellos, el acto sera nulo y se lo considerara involuntario. Los actos voluntarios pueden ser licitos o ilicitos.
+
+Actos voluntarios licitos
+Son aquellos actos voluntarios que se efectuan conforme a la ley. Pueden ser 
+a. Simples actos licitos: Segun el articulo 258, es la accion voluntaria no prohibida por la ley de la que resulta alguna adquisicion, modificacion o extincion de relaciones o situaciones juridicas. Son aquellos hechos humanos, voluntarios, no prohibidos por el ordenamiento normativo que producen efectos con independencia de la voluntad de las partes.
+b. Actos juridicos: El articulo 259 expresa que el acto juridico es "el acto voluntario licito que tiene por fin inmediato la adquisicion, modificacion o extincion de relaciones o situaciones juridicas". Un ejemplo podria ser contraer matrimonio. Es el acto voluntario licito cuya caracterstica principal o esencial es la deliberada voluntad de producir efectos juridicos. 
+Los elementos indispensables para configurar el acto juridico son: sujetos, objeto, causa y forma. 
+
+Actos voluntarios ilicitos
+Son aquellos actos reprodados por la ley, cuando causan daño a otro en razon de la culpa o dolo imputable al autor. Habra delito cuando exista dolo en el autor que obra, es decir, intencion de causar daño. En cambio, habra cuasidelito cuando exista en el autor que obra culpa, es decir, ausencia de intencion de causar daño.
+
+Acto involuntario
+Es involuntario por falta de discernimiento: 
+a. El acto de quien, al momento de realizarlo, esta privado de la razon.
+b. El acto ilicito de la persona menor de edad que no ha cumplido los diez años.
+c. El acto licito de la persona menor de edad que no ha cumplido los trece años, sin perjuicio de lo establecido por disposiciones especiales. 
+
+Instrumentos publicos
+Son instrumentos publicos:
+a. Las escrituras publicas y sus copias o testimonios.
+b. Los instrumentos que extienden los escribanos o funcionarios publicos con los requisitos que establecen las leyes.
+c. Los titulos emitidos por el estado nacional, provincial o Ciudad Autonoma de Buenos Aires, conforme a las leyes que autoricen su emision. 
+El codigo civil y comercial no conceptualiza sino que enuncia los instrumentos publicos. Se entiende por instrumento publico al documento escrito con intervencion de un oficial publico legalmente facultado para ello, con las formalidades que la ley establece. 
