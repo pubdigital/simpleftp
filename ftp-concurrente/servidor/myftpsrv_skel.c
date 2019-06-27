@@ -8,11 +8,18 @@
 #include <err.h>
 
 #include <netinet/in.h>
+#include <arpa/inet.h>              
+
+#include <signal.h>
+#include <sys/wait.h>
 
 #define BUFSIZE 512
 #define CMDSIZE 5
 #define PARSIZE 100
+#define BACKLOG 10
 
+#define MSG_150(OPTION) ((OPTION != 0) ? ("150 Opening BINARY mode data connection for %s (%ld bytes)\r\n"):("150 Opening BINARY mode data connection for %s\r\n"))
+#define MSG_200 "200 PORT command successful\r\n"
 #define MSG_220 "220 srvFtp version 1.0\r\n"
 #define MSG_331 "331 Password required for %s\r\n"
 #define MSG_230 "230 User %s logged in\r\n"
@@ -107,7 +114,7 @@ bool send_ans(int sd, char *message, ...){
  * file_path: name of the RETR file
  **/
 
-void retr(int sd, char *file_path) {
+void retr(int sd,int dsd, char *file_path) {
     FILE *file;    
     int bread;
     long fsize;
@@ -119,7 +126,7 @@ void retr(int sd, char *file_path) {
         return;
     }
     printf("Existe el archivo\n");
-    // send a success message with the file length
+    send_ans(sd, MSG_200);
     fseek(file, 0, SEEK_END);
     fsize = ftell(file);
     fseek(file, 0, SEEK_SET);
@@ -135,13 +142,46 @@ void retr(int sd, char *file_path) {
         if(bread <= 0){ 
             break;
         }
-        send(sd, buffer, bread, 0);
+        send(dsd, buffer, bread, 0);
     }
 
     // close the file
     sleep(1);
     fclose(file);
     printf("Ya se cerro el archivo\n");
+
+    // send a completed transfer message
+    send_ans(sd, MSG_226);
+}
+
+void stor(int sd, int dsd, char *file_path) {
+    FILE *file;    
+    int recv_s;
+    long fsize;
+    int r_size = BUFSIZE;
+    char desc[BUFSIZE];
+    char buffer[BUFSIZE];
+
+    // send a success message
+    send_ans(sd, MSG_200);     
+    
+    // send a success message
+    send_ans(sd, MSG_150(0), file_path);
+    
+    // open the file to write
+    file = fopen(file_path, "w");
+    
+    // receive the file
+    while(1) {
+        recv_s = read(dsd, desc, r_size);
+        if (recv_s > 0) fwrite(desc, 1, recv_s, file);
+        if (recv_s < r_size){
+            break;  
+        } 
+    }
+
+    // close the file
+    fclose(file);
 
     // send a completed transfer message
     send_ans(sd, MSG_226);
@@ -230,7 +270,7 @@ bool authenticate(int sd) {
  *  sd: socket descriptor
  **/
 
-void operate(int sd) {
+void operate(int sd, int datasd) {
     char op[CMDSIZE], param[PARSIZE];
     printf("Inicio el operate\n");
 
@@ -238,11 +278,11 @@ void operate(int sd) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
         recv_cmd(sd, op, param);
-
-
         if (strcmp(op, "RETR") == 0) {
             printf("comando retr\n");
-            retr(sd, param);
+            retr(sd,datasd, param);
+        } else if(strcmp(op, "STOR") == 0) {
+            stor(sd, datasd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
             send_ans(sd, MSG_221);
@@ -260,22 +300,75 @@ void operate(int sd) {
     }
 }
 
+void get_client_ip_port(char *str, char *client_ip, int *client_port) {
+    char *n1, *n2, *n3, *n4, *n5, *n6;
+    int x5, x6;
+    
+    n1 = strtok(str, ",");
+    n2 = strtok(NULL, ",");
+    n3 = strtok(NULL, ",");
+    n4 = strtok(NULL, ",");
+    n5 = strtok(NULL, ",");
+    n6 = strtok(NULL, ",");
+
+    sprintf(client_ip, "%s.%s.%s.%s", n1, n2, n3, n4);
+
+    x5 = atoi(n5);
+    x6 = atoi(n6);
+    *client_port = (256*x5)+x6;
+}
+
+int setup_data_connection(int *dsd, char *client_ip, int client_port, int server_port) {
+    struct sockaddr_in cliaddr, tempaddr;
+
+    if ((*dsd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("socket error");
+        return -1;
+    }
+
+    // bind port for data connection to be server port + 1 by using a temporary struct sockaddr_in
+    server_port++;
+    tempaddr.sin_family = AF_INET;
+    tempaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    tempaddr.sin_port = htons(server_port); 
+    memset(&(tempaddr.sin_zero), '\0', 8); 
+     
+    while((bind(*dsd, (struct sockaddr*) &tempaddr, sizeof(tempaddr))) < 0) {
+        server_port++;        
+        tempaddr.sin_port = htons(server_port);
+    }
+
+    // initiate data connection with client ip and client port             
+    cliaddr.sin_family = AF_INET;
+    cliaddr.sin_port = htons(client_port);
+    memset(&(cliaddr.sin_zero), '\0', 8); 
+    if (inet_pton(AF_INET, client_ip, &cliaddr.sin_addr) <= 0){
+        perror("inet_pton error");
+        return -1;
+    }
+
+    if (connect(*dsd, (struct sockaddr *) &cliaddr, sizeof(cliaddr)) < 0) {
+        perror("connect error");
+        return -1;
+    }
+
+    return 0;
+}
+
+void sigchld_handler(int s) {
+    while(wait(NULL) > 0);
+}
 /**
  * Run with
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
     if(argc<1){
-        printf("<puerto>\n");
-        return 1;
+        exitwithmsg("<puerto>\n");
     }
-        int socket_desc,socket_client, *new_sock, c = sizeof(struct sockaddr_in);
-    char buffer[BUFSIZE], userpass[BUFSIZE],cadena[BUFSIZE], a [100], cod [5];
-    char *ptr;
-    FILE *buscar;
+    int socket_desc,socket_client, c = sizeof(struct sockaddr_in);
     struct  sockaddr_in  server;
     struct  sockaddr_in  client;
-    int resp_size;
     int puerto = (atoi(argv[1]));
 
     // Create socket
@@ -307,9 +400,33 @@ int main (int argc, char *argv[]) {
             printf("Conectando con:%d\n",htons(client.sin_port));
             send(socket_client, MSG_220, sizeof(MSG_220), 0);
             if(authenticate(socket_client)){
-                operate(socket_client);
+                if (!fork()) {
+                    close(socket_desc);
+
+                    int dsd, client_port = 0;
+                    char recvline[BUFSIZE+1];
+                    char client_ip[50];
+                    
+                    // receive PORT command from the client
+                    recv_cmd(socket_client, "PORT", recvline);
+
+                    // save client IP and port data
+                    get_client_ip_port(recvline, client_ip, &client_port);
+                        
+                    // open data connection
+                    if((setup_data_connection(&dsd, client_ip, client_port, puerto)) < 0) {
+                       break;
+                    }
+                    
+                    operate(socket_client, dsd);
+                    
+                    close(dsd);
+                    close(socket_client);
+                    exit(0);
+                }
             }
+            }
+        close(socket_client);
         }
-    }
     return 0;
 }

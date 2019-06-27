@@ -8,8 +8,12 @@
 
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #define BUFSIZE 512
+#define BACKLOG 10
+
+#define MSG_550 "550 %s: no such file or directory\r\n"
 
 /**
  * function: si hay error, se imprime mensaje y se corta el programa
@@ -127,7 +131,7 @@ void authenticate(int sd) {
  * sd: socket descriptor
  * file_name: file name to get from the server
  **/
-void get(int sd, char *file_name) {
+void get(int sd,int dsd, char *file_name) {
     char desc[BUFSIZE], buffer[BUFSIZE];
     int f_size, recv_s, r_size = BUFSIZE;
     FILE *file;
@@ -138,6 +142,7 @@ void get(int sd, char *file_name) {
     // check for the response
     if(recv_msg(sd, 550, NULL) == true) return;
 
+    recv_msg(sd, 200, NULL);
     // parsing the file size from the answer received
     // "File %s size %ld bytes"
     sscanf(buffer, "File %*s size %d bytes", &f_size);
@@ -146,10 +151,10 @@ void get(int sd, char *file_name) {
     file = fopen(file_name, "wb");
 
     //receive the file
-    while(1){
-        recv_s = recv(sd, buffer, r_size, 0);
+   while(1){
+        recv_s = read(dsd, desc, r_size);
                 
-        fwrite(buffer, 1, recv_s, file);
+        fwrite(desc, 1, recv_s, file);
 
         if (recv_s < r_size){
             // close the file
@@ -158,11 +163,40 @@ void get(int sd, char *file_name) {
             break;
         }
     }
-
+    fclose(file);
     // receive the OK from the server
     recv_msg(sd, 226, NULL);
 }
+void put(int sd, int datasd, char *file_name) {
+    char desc[BUFSIZE], buffer[BUFSIZE];
+    int f_size, recv_s, r_size = BUFSIZE;
+    int bread;
+    FILE *file;
 
+    if ((file = fopen(file_name, "r")) == NULL) {
+        printf(MSG_550, file_name);
+        return;
+    }
+
+    send_msg(sd, "STOR", file_name);
+    
+    recv_msg(sd, 200, NULL);
+
+    recv_msg(sd, 150, NULL);
+ 
+    while(1) {
+        bread = fread(buffer, 1, BUFSIZE, file);
+        if (bread > 0) {
+            send(datasd, buffer, bread, 0);
+            sleep(1);
+        }
+        if (bread < BUFSIZE) break;
+    }
+    
+    fclose(file);
+
+    recv_msg(sd, 226, NULL);
+}
 /**
  * function: operation quit
  * sd: socket descriptor
@@ -179,7 +213,7 @@ void quit(int sd) {
  * function: make all operations (get|quit)
  * sd: socket descriptor
  **/
-void operate(int sd) {
+void operate(int sd, int dsd) {
     char *input, *op, *param;
 
     while (true) {
@@ -190,11 +224,15 @@ void operate(int sd) {
         op = strtok(input, " ");
         if (strcmp(op, "get") == 0) {
             param = strtok(NULL, " ");
-            get(sd, param);
+            get(sd, dsd, param);
         }
         else if (strcmp(op, "quit") == 0) {
             quit(sd);
             break;
+        }
+        else if (strcmp(op, "put") == 0) {
+            param = strtok(NULL, " ");
+            put(sd, dsd, param);
         }
         else {
             // new operations in the future
@@ -204,7 +242,49 @@ void operate(int sd) {
     }
     free(input);
 }
+void get_ip_port(int sd, char *ip, int *port) {
+    struct sockaddr_in addr;
+    socklen_t len = sizeof(addr);
 
+    getsockname(sd, (struct sockaddr*) &addr, &len);
+
+    sprintf(ip,"%s", inet_ntoa(addr.sin_addr));
+
+    *port = (uint16_t)ntohs(addr.sin_port);
+}
+void convert(uint16_t port, int *n5, int *n6) {
+    int i = 0;
+    int x = 1;
+    *n5 = 0;
+    *n6 = 0;
+    int temp = 0;
+    for(i = 0; i < 8; i++) {
+        temp = port & x;
+        *n6 = (*n6)|(temp);
+        x = x << 1; 
+    }
+
+    port = port >> 8;
+    x = 1;
+
+    for(i = 8; i < 16; i++){
+        temp = port & x;
+        *n5 = ((*n5)|(temp));
+        x = x << 1; 
+    }
+}
+void get_port_string(char *str, char *ip, int n5, int n6) {
+    int i = 0;
+    char ip_temp[1024];
+    strcpy(ip_temp, ip);
+
+    for(i = 0; i < strlen(ip); i++){
+        if(ip_temp[i] == '.'){
+            ip_temp[i] = ',';
+        }
+    }
+    sprintf(str, "%s,%d,%d", ip_temp, n5, n6);
+}
 /**
  * Run with
  *         ./myftp <SERVER_IP> <SERVER_PORT>
@@ -215,19 +295,23 @@ int main (int argc, char *argv[]) {
         return 1;
     }
     int sd,resp_size,valor,puerto;
-    struct sockaddr_in addr;
-    char *ptr;
-    char pedido[BUFSIZE],respuesta[BUFSIZE];
-    char buffer[BUFSIZE], usuario[BUFSIZE], pass[BUFSIZE];
-    char user [5] = "USER";
-    char contr [5] = "PASS";
+    int listensd, datasd, n5, n6, x;
+    struct sockaddr_in addr, addr2;
+    char buffer[BUFSIZE];
+    struct hostent *he;
+    char ip[50], str[BUFSIZE+1];
     
     puerto = (atoi(argv[2]));
         
+    if ((he = gethostbyname(argv[1])) == NULL) {   
+        exitwithmsg("gethostbyname");
+    }
     sd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sd == -1)
-    {
+    if (sd == -1){
         exitwithmsg("No se puede crear el socket\n");
+    }
+    if(puerto < 1  || puerto > 65535){
+        exitwithmsg("No existe ese puerto \n");
     }
 
     addr.sin_addr.s_addr = inet_addr(argv[1]);
@@ -243,7 +327,32 @@ int main (int argc, char *argv[]) {
         if((resp_size = recv(sd, buffer, BUFSIZE, 0))> 0) {
             printf( "Me llego del servidor: %s \n", buffer);
             authenticate(sd);
-            operate(sd);
+
+            listensd = socket(AF_INET, SOCK_STREAM, 0);
+
+            addr2.sin_family = AF_INET;
+            addr2.sin_port = htons(0); 
+            addr2.sin_addr.s_addr = htonl(INADDR_ANY);
+            memset(&(addr2.sin_zero), '\0', 8);
+
+            bind(listensd, (struct sockaddr*) &addr2, sizeof(addr2));
+            listen(listensd, BACKLOG);
+
+            get_ip_port(sd, ip, (int *) &x);
+
+            get_ip_port(listensd, str, (int *) &puerto);
+
+            convert(puerto, &n5, &n6);
+
+            get_port_string(str, ip, n5, n6);
+
+            send_msg(sd, "PORT", str);
+
+            datasd = accept(listensd, (struct sockaddr*) NULL, NULL);
+
+            operate(sd, datasd);
+
+            close(datasd);
         }else{
             exitwithmsg("Servidor desconectado!");
         }

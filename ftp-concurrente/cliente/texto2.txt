@@ -1,0 +1,6 @@
+Esta es una prueba del envio del archivo del cliente al servidor.
+
+Redes 2-2019
+
+
+Nicolas Bernard.
