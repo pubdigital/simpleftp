@@ -12,11 +12,17 @@
 #include <arpa/inet.h>
 #include <errno.h>
 
+#include <signal.h>
+#include <sys/wait.h>
+
 
 #define BUFSIZE 512
 #define CMDSIZE 5
 #define PARSIZE 100
 
+#define MSG_150 "150 opening BINARY mode data connection for %s (%d bytes)\r\n"
+#define MSG_150A "150 opening BINARY mode data connection for %s\r\n"
+#define MSG_200 "200 PORT command successful\r\n"
 #define MSG_220 "220 srvFtp version 1.0\r\n"
 #define MSG_331 "331 Password required for %s\r\n"
 #define MSG_230 "230 User %s logged in\r\n"
@@ -25,6 +31,57 @@
 #define MSG_550 "550 %s: no such file or directory\r\n"
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
+
+/**
+ *   dataConnectionCreate
+ **/
+int dataConnectionCreate(int sdCtrl,int * sdData,char * ipAndPort,int myPort){
+   struct sockaddr_in addr, tempaddr;
+    char ip[16];
+    int port;
+
+    strcpy(ip,strtok(ipAndPort,","));
+    for(int i=0;i<3;i++){
+        strcat(ip,".");
+        strcat(ip,strtok(NULL,","));
+    }
+    port=256*atoi(strtok(NULL,","))+atoi(strtok(NULL,","));
+    printf("Ip: %s, port: %d\n",ip,port);
+                
+    bzero((char*)&addr,16);
+    addr.sin_port=htons(port);
+    addr.sin_family=AF_INET;
+    inet_aton(ip,&addr.sin_addr);
+
+    // create socket and check for errors
+    if((*sdData = socket(AF_INET,SOCK_STREAM,0))==-1){
+        close(*sdData);
+        perror("Socket error: ");
+        return -1;
+    }
+
+    myPort++;
+    tempaddr.sin_family = AF_INET;
+    tempaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+    tempaddr.sin_port = htons(myPort); 
+    bzero((char*)&tempaddr,16);
+     
+    while((bind(*sdData, (struct sockaddr*) &tempaddr, sizeof(tempaddr))) < 0) {
+        myPort++;        
+    	tempaddr.sin_port = htons(myPort);
+    }
+
+#ifdef DEBUG
+    printf("Socket creado %s %d %d\n",ip,port,*sdData);
+#endif
+    // connect and check for errors
+    if(connect(*sdData,(struct sockaddr *)&addr,sizeof(addr))<0){
+        close(*sdData);
+        perror("Connect error: ");
+        return -1;
+    }
+    return 0;
+}
 
 /**
  * function: receive the commands from the client
@@ -71,7 +128,7 @@ bool recv_cmd(int sd, char *operation, char *param) {
         if (token != NULL) strcpy(param, token);
     }
 #ifdef DEBUG
-            printf("Token: %s. Operation: %s. param: %s\n",token,operation,param);
+    printf("Token: %s. Operation: %s. param: %s\n",token,operation,param);
 #endif
     return true;
 }
@@ -97,22 +154,72 @@ bool send_ans(int sd, char *message, ...){
 }
 
 /**
+ * function: STOR operation
+ * sd: socket descriptor
+ * datasd: socket descriptor / data connection
+ * file_path: name of the STOR file
+ **/
+void stor(int sd, int sdData, char *file_path) {
+    FILE *file;    
+    int recv_s;
+    int r_size = BUFSIZE;
+    char desc[BUFSIZE];
+
+    // send a success message
+    send_ans(sd, MSG_200);     
+    
+    // send a success message
+    send_ans(sd, MSG_150A, file_path);
+    
+    if(!sdData){
+        printf("No data");
+        return;
+    }
+
+    strcat(file_path,"2");
+    // open the file to write
+    file = fopen(file_path, "w");
+
+#ifdef DEBUG
+    printf("Inicio de recepcion de archivo\n");
+#endif
+    
+    // receive the file
+	while(1) {
+        recv_s = read(sdData, desc, r_size);
+        if (recv_s > 0) fwrite(desc, 1, recv_s, file);
+        if (recv_s < r_size) break;
+    }
+
+    // close the file
+    fclose(file);
+
+    // send a completed transfer message
+    send_ans(sd, MSG_226);
+#ifdef DEBUG
+    printf("Recepcion de archivo completada\n");
+#endif
+}
+
+/**
  * function: RETR operation
  * sd: socket descriptor
  * file_path: name of the RETR file
  **/
 
-void retr(int sd, char *file_path) {
+void retr(int sdCtrl,int sdData, char *file_path) {
     FILE *file;    
     int bread;
     long fsize;
     char buffer[BUFSIZE];
-
+    if(!sdData){
+        return;
+    }
 
     // check if file exists if not inform error to client
     if((file=fopen(file_path,"r"))==NULL){
         printf("Open file error: ");
-        send_ans(sd,MSG_550,file_path);
+        send_ans(sdCtrl,MSG_550,file_path);
         return;
     }
     // send a success message with the file length
@@ -120,7 +227,8 @@ void retr(int sd, char *file_path) {
     fsize = ftell(file);
     fseek(file, 0L, SEEK_SET);
 
-    send_ans(sd,MSG_299,file_path,fsize);
+//    send_ans(sd,MSG_299,file_path,fsize);
+    send_ans(sdCtrl,MSG_150,file_path,fsize);
 
     // important delay for avoid problems with buffer size
     sleep(1);
@@ -132,7 +240,7 @@ void retr(int sd, char *file_path) {
             printf("Read file error\n");
             return;
         }
-        if(send(sd,buffer,bread,0)<0){
+        if(send(sdData,buffer,bread,0)<0){
             printf("Send file error\n");
             return;
         }
@@ -141,9 +249,9 @@ void retr(int sd, char *file_path) {
     fclose(file);
     // send a completed transfer message
     sleep(1);
-    send_ans(sd,MSG_226);
+    send_ans(sdCtrl,MSG_226);
 #ifdef DEBUG
-    printf("Se completó el envío\n");
+    printf("Se completÃ³ el envÃ­o\n");
 #endif
 
 }
@@ -176,7 +284,7 @@ bool check_credentials(char *user, char *pass) {
     while(getline(&line,&len,file)>0){
         if(!strcmp(line,cred)){
 #ifdef DEBUG
-            printf("Usuario: %s y contraseña: *******, encontrados.\n",user);
+            printf("Usuario: %s y contraseÃ±a: *******, encontrados.\n",user);
 #endif
             found=true;
             break;
@@ -229,18 +337,25 @@ bool authenticate(int sd) {
  *  sd: socket descriptor
  **/
 
-void operate(int sd) {
+void operate(int sdCtrl,int port) {
     char op[CMDSIZE], param[PARSIZE];
+    int sdData=0;
 
     while (true) {
         op[0] = param[0] = '\0';
         // check for commands send by the client if not inform and exit
-        recv_cmd(sd,op,param);
+        recv_cmd(sdCtrl,op,param);
         if (strcmp(op, "RETR") == 0) {
-            retr(sd, param);
+            retr(sdCtrl,sdData, param);
+        } else if (strcmp(op, "PORT") == 0) {
+            // send goodbye and close connection
+            send_ans(sdCtrl,MSG_200);
+            dataConnectionCreate(sdCtrl,&sdData,param,port);
+        } else if(strcmp(op, "STOR") == 0) {
+            stor(sdCtrl, sdData, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-            send_ans(sd,MSG_221);
+            send_ans(sdCtrl,MSG_221);
             break;
         } else {
             // invalid command
@@ -249,9 +364,19 @@ void operate(int sd) {
             // furute use
         }
     }
-    close(sd);
+    close(sdData);
+    close(sdCtrl);
     return;
 }
+
+/**
+ *   signal handler function
+ **/
+void sigchld_handler(int s){
+    while(wait(NULL)>0);
+}
+
+
 
 /**
  * Run with
@@ -270,7 +395,6 @@ int main (int argc, char *argv[]) {
         }
     }
 
-
 #ifdef DEBUG
     printf("Argumentos ok!\n");
 #endif
@@ -278,6 +402,7 @@ int main (int argc, char *argv[]) {
     // reserve sockets and variables space
     int sd,sd2,sin_size;
     struct sockaddr_in addr,cliente;
+    int port=atoi(argv[1]);
     
     // create server socket and check errors
     if((sd = socket(AF_INET,SOCK_STREAM,0))==-1){
@@ -286,12 +411,11 @@ int main (int argc, char *argv[]) {
         exit(errno);
     }
 #ifdef DEBUG
-    printf("Socket creado\n");
+    printf("Socket creado: %d \n",sd);
 #endif
-    
     // bind master socket and check errors
     addr.sin_family=AF_INET;
-    addr.sin_port = htons(atoi(argv[1]));
+    addr.sin_port = htons(port);
     addr.sin_addr.s_addr=INADDR_ANY;
 
     if(bind(sd,(struct sockaddr *) &addr,sizeof(addr))<0){
@@ -311,15 +435,25 @@ int main (int argc, char *argv[]) {
     }
 
     // main loop
+
 #ifdef DEBUG
     printf("Listen ok!\n");
 #endif
+
+    struct sigaction sigAct;
+    sigAct.sa_handler = sigchld_handler;
+    sigemptyset(&sigAct.sa_mask);
+    sigAct.sa_flags = SA_RESTART;
+    if(sigaction(SIGCHLD,&sigAct,NULL)==-1){
+        perror("Sigaction error:");
+        exit(errno);
+    }
   
     sin_size=sizeof(struct sockaddr_in);
     while (true) {
         // accept connectiones sequentially and check errors
 #ifdef DEBUG
-        printf("Esperando conexión...\n");
+        printf("Esperando conexiÃ³n...\n");
 #endif
         if((sd2 = accept(sd,(struct sockaddr *)&cliente,(socklen_t *)&sin_size))==-1){
             close(sd2);
@@ -333,17 +467,21 @@ int main (int argc, char *argv[]) {
         send_ans(sd2,MSG_220);
 
         // operate only if authenticate is true
-        if(authenticate(sd2)){
+        if(!fork() && authenticate(sd2)){
 #ifdef DEBUG
             printf("Autenticacion ok!\n");
 #endif
-            operate(sd2);
+            close(sd);
+
+            operate(sd2,port);
 #ifdef DEBUG
             printf("Fin operacion\n");
 #endif
             sleep(1);
+            exit(0);
         }
 
+        close(sd2);
     }
 
     // close server socket
