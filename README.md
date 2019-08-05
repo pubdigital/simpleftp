@@ -1,24 +1,72 @@
-### COMPILAR FUENTES
+# simpleftp
+Skeleton for socket programming lectures
+
+
+## Funcionamiento del socket
+
+Para compilar el **cliente**:
+
 ```
-gcc myftp_skel.c -o cliente
-gcc myftpsrv_skel.c -o servidor
+$ gcc cliente-ftp.c -o clFtp
 ```
 
-### EJECUTAR
+Para compilar el **servidor**:
+
 ```
-sudo ./servidor 8080
-sudo ./cliente 127.0.0.1 8080
+$ gcc servidor-ftp.c -o srvFtp
 ```
 
-### UNA VEZ LEVANTADO CLIENTE SERVIDOR REALIZAMOS LA TRANFERENCIA (CHEQUEAR QUE LOS ARCHIVOS ESTEN EN CARPETAS SEPARADAS)
+## Archivos en el directorio del cliente:
+
 ```
-220 srvFtp version 1.0
-Insert user: juanma
-331 Password required for juanma
-Insert password: juan1234
-230 User juanma logged in
-Operation: get test.txt
-299 File test.txt size 8 bytes
+$ ls
+clFtp cliente-ftp.c prueba.txt
+```
+
+## Archivos en el directorio del servidor:
+
+```
+$ ls
+ftpusers letra.txt servidor-ftp.c srvFtp
+```
+
+#### Probando la interacción entre cliente y servidor:
+
+El _servidor_ escuchará en el puerto 11000:
+
+```
+$ ./srvFtp 11000
+```
+
+Un cliente se conecta para solicitarle un archivo:
+
+```
+$ ./clFtp localhost 11000
+220 srvFtp version 2.0
+Username: juan
+331 Password required for nano
+Password: juan1234
+230 User juan logged in
+Operation: get letra.txt
+200 PORT command successful
+150 Opening BINARY mode data connection for letra.txt (1591 bytes)
+226 Transfer complete
+Operation: quit
+221 Goodbye
+```
+
+Al mismo tiempo, otro cliente se conecta para enviarle un archivo:
+
+```
+$ ./clFtp localhost 11000
+220 srvFtp version 2.0
+Username: admin
+331 Password required for admin
+Password: admin
+230 User admin logged in
+Operation: put prueba.txt
+200 PORT command successful
+150 Opening BINARY mode data connection for prueba.txt
 226 Transfer complete
 Operation: quit
 221 Goodbye
