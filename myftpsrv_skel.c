@@ -125,14 +125,42 @@ bool check_credentials(char *user, char *pass) {
     bool found = false;
 
     // make the credential string
+    strcpy(cred, user);
+    strcat(cred, ":");
+    strcat(cred, pass);
+    strcat(cred, "\n");
 
     // check if ftpusers file it's present
+    file = fopen(path, "r");
+    if (file == NULL)
+    {
+      printf(MSG_550, path);
+      return -1;
+    }
 
     // search for credential string
+    line = (char*) malloc (sizeof(char)*100);
+
+    while(!feof(file)) {
+        fgets(line, 100, file);
+
+        if(strcmp(cred, line) == 0) {
+            found = true;
+        }
+    }
 
     // close file and release any pointes if necessary
+    fclose(file);
+    free(line);
 
     // return search status
+    if (found == true) {
+        printf(MSG_230, user);
+    } else {
+        printf(MSG_530);
+    }
+    
+    return found;
 }
 
 /**
@@ -188,27 +216,81 @@ void operate(int sd) {
  *         ./mysrv <SERVER_PORT>
  **/
 int main (int argc, char *argv[]) {
-
+    
     // arguments checking
+    if (argc != 2) {
+    	printf("ERROR: port number not included or too many arguments.\n");
+    	return -1;
+    }
 
-    // reserve sockets and variables space
+    // reserve sockets and variables space    
+    int sockid, clientsock;         /* clientsock -> socket used for data-transfer */
+    struct sockaddr_in addrport;	/* the IP address + port of the machine */
+    struct sockaddr_in clientAddr;  /* address of the active participant */
+    socklen_t clientAddr_size;
+    int portNumber = atoi(argv[1]); /* converts the port given as an argument into an int */
 
     // create server socket and check errors
-    
-    // bind master socket and check errors
+    sockid = socket(PF_INET, SOCK_STREAM, 0);	/* creates the socket and returns its file descriptor */
+    if (sockid < 0) {
+    	printf("ERROR: failed to create the socket.\n");
+    	return -1;
+    }
 
-    // make it listen
+    addrport.sin_family = AF_INET; /* Internet Protocol address family */
+    addrport.sin_port = htons(portNumber); /* to make sure that numbers are stored in memory in network byte order */
+    addrport.sin_addr.s_addr = htonl(INADDR_ANY); /* with INADDR_ANY the socket binds to all the local interfaces */
+
+
+    // bind master socket and check errors
+    if(bind(sockid, (struct sockaddr *) &addrport, sizeof(addrport)) < 0) {
+    	printf("ERROR: failed to associate socket with local address.\n");
+    	return -1;
+    }
+
+
+    // make it listen    
+    
+    /**
+     * listen is non-blocking: returns immediately.
+     * The listening socket is used only as a way to get new sockets in queue
+     **/
+    if(listen(sockid, BACKLOG) < 0) {
+    	printf("ERROR: socket failed to listen.\n");
+    	return -1;
+    }
+
 
     // main loop
     while (true) {
-        // accept connectiones sequentially and check errors
+
+        // accept connections sequentially and check errors
+
+        /**
+         * accept() creates a new, connected socket.
+         * accept is blocking: waits for connection before returning
+         * and dequeues the next connectionon the queue for sockid
+         **/
+    	clientAddr_size = sizeof(clientAddr);
+
+    	if((clientsock = accept(sockid, (struct sockaddr *) &clientAddr, &clientAddr_size)) < 0) {
+    		printf("ERROR: socket failed to accept connection.\n");
+    		return -1;
+    	}
+
 
         // send hello
-
+        send_ans(clientsock, MSG_220);
+        
         // operate only if authenticate is true
+        if(authenticate(clientsock) != true) {
+        	printf(MSG_530);
+            close(clientsock);
+        } else operate(clientsock);
     }
 
     // close server socket
+    close(sockid);
 
     return 0;
 }
