@@ -1,11 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
-
 #include <string.h>
 #include <stdbool.h>
 #include <unistd.h>
 #include <err.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
@@ -39,7 +37,6 @@ bool recv_msg(int sd, int code, char *text) {
     // boolean test for the code
     return (code == recv_code) ? true : false;
 }
-
 /**
  * function: send command formated to the server
  * sd: socket descriptor
@@ -58,7 +55,6 @@ void send_msg(int sd, char *operation, char *param) {
     // send command and check for errors
 
 }
-
 /**
  * function: simple input from keyboard
  * return: input without ENTER key
