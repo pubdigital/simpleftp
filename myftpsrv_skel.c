@@ -120,19 +120,34 @@ void retr(int sd, char *file_path) {
  **/
 bool check_credentials(char *user, char *pass) {
     FILE *file;
-    char *path = "./ftpusers", *line = NULL, cred[100];
-    size_t len = 0;
+    char *path = "./ftpusers", *line = NULL, credentials[100];
+    size_t line_size = 0;
     bool found = false;
 
     // make the credential string
+    sprintf(credentials, "%s:%s", user, pass);
 
     // check if ftpusers file it's present
+    if ((file = fopen(path, "r"))==NULL) {
+        warn("Error opening %s", path);
+        return false;
+    }
 
     // search for credential string
+    while (getline(&line, &line_size, file) != -1) {
+        strtok(line, "\n");
+        if (strcmp(line, credentials) == 0) {
+            found = true;
+            break;
+        }
+    }
 
-    // close file and release any pointes if necessary
+    // close file and release any pointers if necessary
+    fclose(file);
+    if (line) free(line);
 
     // return search status
+    return found;
 }
 
 /**
@@ -144,6 +159,7 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+
 
     // ask for password
 
@@ -190,8 +206,15 @@ void operate(int sd) {
 int main (int argc, char *argv[]) {
 
     // arguments checking
+    if (argc < 2) {
+        errx(1, "Port expected as argument");
+    } else if (argc > 2) {
+        errx(1, "Too many arguments");
+    }
 
     // reserve sockets and variables space
+    int master_sd, slave_sd;
+    struct sockaddr_in master_addr, slave_addr;
 
     // create server socket and check errors
     
