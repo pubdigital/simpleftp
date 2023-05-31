@@ -18,8 +18,6 @@
 #define MSG_299 "299 File %s size %ld bytes\r\n"
 #define MSG_226 "226 Transfer complete\r\n"
 
-#define FINPUERTO 65535
-
 /**
  * function: receive the commands from the client
  * sd: socket descriptor
@@ -36,18 +34,13 @@
 bool recv_cmd(int sd, char *operation, char *param) {
     char buffer[BUFSIZE], *token;
     int recv_s;
-
     // receive the command in the buffer and check for errors
     // expunge the terminator characters from the buffer
-
     buffer[strcspn(buffer, "\r\n")] = 0;
-
     // complex parsing of the buffer
     // extract command receive in operation if not set \0
     // extract parameters of the operation in param if it needed
-
     token = strtok(buffer, " ");
-
     if (token == NULL || strlen(token) < 4) {
         warn("not valid ftp command");
         return false;
@@ -86,7 +79,6 @@ bool send_ans(int sd, char *message, ...){
  * sd: socket descriptor
  * file_path: name of the RETR file
  **/
-
 void retr(int sd, char *file_path) {
     FILE *file;    
     int bread;
@@ -100,7 +92,6 @@ void retr(int sd, char *file_path) {
     // close the file
     // send a completed transfer message
 }
-
 /**
  * funcion: check valid credentials in ftpusers file
  * user: login user name
@@ -112,12 +103,35 @@ bool check_credentials(char *user, char *pass) {
     FILE *file;
     char *path = "./ftpusers", *line = NULL, cred[100];
     size_t len = 0;
+    char *path = "./ftpusers", *line = NULL, credentials[100];
+    size_t line_size = 0;
     bool found = false;
+
     // make the credential string
+    sprintf(credentials, "%s:%s", user, pass);
+
     // check if ftpusers file it's present
+    if ((file = fopen(path, "r"))==NULL) {
+        warn("Error opening %s", path);
+        return false;
+    }
+
     // search for credential string
+    while (getline(&line, &line_size, file) != -1) {
+        strtok(line, "\n");
+        if (strcmp(line, credentials) == 0) {
+            found = true;
+            break;
+        }
+    }
+
     // close file and release any pointes if necessary
+    // close file and release any pointers if necessary
+    fclose(file);
+    if (line) free(line);
+
     // return search status
+    return found;
 }
 
 /**
@@ -130,12 +144,14 @@ bool authenticate(int sd) {
     char user[PARSIZE], pass[PARSIZE];
 
     // wait to receive USER action
+
+
     // ask for password
+
     // wait to receive PASS action
     // if credentials don't check denied login
     // confirm login
 }
-
 /**
  *  function: execute all commands (RETR|QUIT)
  *  sd: socket descriptor
@@ -157,23 +173,21 @@ void operate(int sd) {
         }
     }
 }
-
 /**
  * Run with
  *         ./mysrv <SERVER_PORT>
  **/
-
 int main (int argc, char *argv[]) {
 
     // arguments checking
+  int i, cont_puerto;
 
-	int i, cont_puerto;
-
-	if (argc!=2){	//se comprueba si se recibe la cantidad de argumentos indicados
-	   printf("Ingrese un numero de puerto\n");
-	   exit(1);
-	}
-	else{
+    
+    if (argc < 2) {
+        errx(1, "Port expected as argument");
+    } else if (argc > 2) {
+        errx(1, "Too many arguments");
+    } else {
 	   for(i = 0; i < strlen(argv[1]);i++){	//se toma el primer argumento recibido y analiza caracter por caracter si es un numero o no
 	       cont_puerto = argv[1][i]-48;
 	       if(cont_puerto < 0 || cont_puerto >9){
@@ -188,19 +202,19 @@ int main (int argc, char *argv[]) {
 	}
 
     // reserve sockets and variables space
+    int master_sd, slave_sd;
+    struct sockaddr_in master_addr, slave_addr;
 
     // create server socket and check errors
-    
+
     // bind master socket and check errors
     // make it listen
     // main loop
-
     while (true) {
         // accept connectiones sequentially and check errors
         // send hello
         // operate only if authenticate is true
     }
-
     // close server socket
     return 0;
 }
