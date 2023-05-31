@@ -206,7 +206,10 @@ int main (int argc, char *argv[]) {
     struct sockaddr_in master_addr, slave_addr;
 
     // create server socket and check errors
-
+    master_sd = socket(AF_INET, SOCK_STREAM, 0);
+    if(master_sd<0){
+	warn("Errror");
+    }
     // bind master socket and check errors
     // make it listen
     // main loop
