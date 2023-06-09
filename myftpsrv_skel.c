@@ -71,7 +71,17 @@ bool send_ans(int sd, char *message, ...){
     va_start(args, message);
     vsprintf(buffer, message, args);
     va_end(args);
-    // send answer preformated and check errors
+    
+// send answer preformated and check errors
+
+	if(send(sd, buffer, strlen(buffer),0)>0){
+	return true;
+	}
+    else{
+	warn("Error\n");
+	return false;
+	}
+	
 }
 
 /**
@@ -202,22 +212,49 @@ int main (int argc, char *argv[]) {
 	}
 
     // reserve sockets and variables space
+	
     int master_sd, slave_sd;
     struct sockaddr_in master_addr, slave_addr;
-
+    socklen_t saddr_len = sizeof(slave_addr);	
+	
     // create server socket and check errors
     master_sd = socket(AF_INET, SOCK_STREAM, 0);
     if(master_sd<0){
 	warn("Errror");
     }
+	
     // bind master socket and check errors
+
+    maddr.sin_family = AF_INET;
+    maddr.sin_addr.s_addr = INADDR_ANY;
+    maddr.sin_port = htons(atoi(argv[1]));
+
+    if(bind(msd, (struct sockaddr *) &maddr, sizeof(maddr))<0){
+	errx(1,"Error");
+    }
+	
     // make it listen
+    
+    listen(master_sd, 5);	
+	
     // main loop
     while (true) {
         // accept connectiones sequentially and check errors
+	    
+    if((slave_sd = accept(master_sd,(struct sockaddr *) &slave_addr, &saddr_len))<0){
+	    errx(1, "Error");
+	} 
+	    
         // send hello
+	   
+     send_ans(slave_sd, MSG_220);   
+	    
         // operate only if authenticate is true
     }
     // close server socket
+	
+    close(slave_sd);
+    close(master_sd);
+	
     return 0;
 }
