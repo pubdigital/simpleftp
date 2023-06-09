@@ -26,7 +26,9 @@ bool recv_msg(int sd, int code, char *text) {
     int recv_s, recv_code;
  
     // receive the answer
-    // error checking
+    recv_s = recv(sd, buffer, BUFSIZE, 0);
+    
+ // error checking
     
     if (recv_s < 0) warn("error receiving data");
     if (recv_s == 0) errx(1, "connection closed by host");
@@ -63,6 +65,10 @@ void send_msg(int sd, char *operation, char *param) {
         sprintf(buffer, "%s\r\n", operation);
 
     // send command and check for errors
+       if (send(sd, res, strlen(res) + 1, 0)<0){
+	      warn("Error al enviar comando\n");
+    }
+
 }
 
 /**
@@ -94,23 +100,38 @@ void authenticate(int sd) {
 
     // send the command to the server
     
+    send_msg(sd, "USER", input);  
+ 
     // relese memory
 
     free(input);
 
     // wait to receive password requirement and check for errors
+   
+    code = 331;
+    if (!recv_msg(sd, code, NULL)) {
+   	errx(1,"El servidor no responde");
+    
     // ask for password
 
     printf("passwd: ");
     input = read_input();
 
     // send the command to the server
+     
+    send_msg(sd, "PASS", input);
+     
     // release memory
 
     free(input);
 
     // wait for answer and process it and check for errors
-}
+    
+     code=230;
+    if (!recv_msg(sd, code, NULL)) {
+	   errx(1,"Error al loguearse");
+    }      
+ }
 
 /**
  * function: operation get
@@ -244,8 +265,25 @@ int main (int argc, char *argv[]) {
     addr.sin_port = htons(atoi(argv[2]));
 
     // connect and check for errors
+ 
+    if(connect(sd,(struct sockaddr *)&addr, sizeof(addr)) < 0){
+           printf("Error al conectar el socket\n");
+           exit(1);
+   }  
+  
     // if receive hello proceed with authenticate and operate if not warning
+ 
+     	if recv_msg(sd, 220, NULL){
+           authenticate(sd);
+	          operate(sd);	
+	}
+      else{
+         warn("Error al recibir mensaje\n");
+	}    
+ 
     // close socket
+ 
+     close(sd);
  
  return 0;
 }
