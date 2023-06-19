@@ -35,6 +35,15 @@ bool recv_cmd(int sd, char *operation, char *param) {
     char buffer[BUFSIZE], *token;
     int recv_s;
     // receive the command in the buffer and check for errors
+    if ((recv_s = recv(sd, buffer, BUFSIZE,0))<0){
+	warn("Error al recibir\n");
+	return false;
+    }
+    else{
+	if(recv_s == 0){
+	   return false;
+	}
+    }
     // expunge the terminator characters from the buffer
     buffer[strcspn(buffer, "\r\n")] = 0;
     // complex parsing of the buffer
@@ -155,12 +164,31 @@ bool authenticate(int sd) {
 
     // wait to receive USER action
 
+	if(!recv_cmd(sd, "USER", user)){
+	return false;
+    	}
 
     // ask for password
 
+	send_ans(sd,MSG_331, user);
+	
     // wait to receive PASS action
+	
+	if(!recv_cmd(sd, "PASS", pass)){
+	return false;
+    	}
+	
     // if credentials don't check denied login
+	
+	if(!check_credentials(user, pass)){
+	send_ans(sd,MSG_530);
+	return false;
+    	}
+	
     // confirm login
+	
+	send_ans(sd, MSG_230, user);
+    	return true;
 }
 /**
  *  function: execute all commands (RETR|QUIT)
@@ -250,6 +278,14 @@ int main (int argc, char *argv[]) {
      send_ans(slave_sd, MSG_220);   
 	    
         // operate only if authenticate is true
+	    
+	   if(authenticate(ssd)){
+	   	printf("Funcionando\n");
+	   }
+	   else{
+	   	warn("Errorr!\n");
+	   	close(ssd);
+	   }
     }
     // close server socket
 	
