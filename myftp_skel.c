@@ -165,6 +165,19 @@ if(!recv_msg(sd,299,buffer)){
     file = fopen(file_name, "w");
 
     //receive the file
+	
+    while(1) {
+        recv_s = read(sd, desc, r_size);
+        if (recv_s > 0) {
+        fwrite(desc, 1, recv_s, file);
+        }
+
+        if (recv_s < r_size) {
+            break;
+        }
+    }
+
+  
     // close the file
 
     fclose(file);
