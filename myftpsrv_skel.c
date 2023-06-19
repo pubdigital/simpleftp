@@ -104,12 +104,34 @@ void retr(int sd, char *file_path) {
     long fsize;
     char buffer[BUFSIZE];
     // check if file exists if not inform error to client
+	if ((file = fopen(file_path, "r")) == NULL) {
+            send_ans(sd, MSG_550, file_path);
+            return;
+        }
     // send a success message with the file length
-    // important delay for avoid problems with buffer size
-    sleep(1);
+	fseek (file, 0L, SEEK_END);
+        fsize = ftell(file);
+        send_ans (sd, MSG_299, file_path, fsize);
+        rewind(file);
+
     // send the file
+	while (1) {
+        bread = fread (buffer, 1, BUFSIZE, file);
+
+        if (bread > 0) {
+            send (sd, buffer, bread, 0);
+    
+    // important delay for avoid problems with buffer size
+            sleep(1);
+        }
+        if (bread < BUFSIZE) {
+            break;
+        }
+    }
     // close the file
+	fclose(file);
     // send a completed transfer message
+	send_ans(sd,MSG_226);
 }
 /**
  * funcion: check valid credentials in ftpusers file
@@ -204,7 +226,8 @@ void operate(int sd) {
             retr(sd, param);
         } else if (strcmp(op, "QUIT") == 0) {
             // send goodbye and close connection
-            break;
+        	send_ans(sd, MSG_221);    
+		break;
         } else {
             // invalid command
             // furute use
